@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useTheme } from '@/hooks/useTheme';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { Button } from '@/components/ui/button';
-import { User, Trophy, ArrowLeft } from 'lucide-react';
+import { User, Trophy, ArrowLeft, Sun, Moon } from 'lucide-react';
 
 interface GameHUDProps {
   onAccountClick: () => void;
@@ -11,7 +12,12 @@ interface GameHUDProps {
 
 export function GameHUD({ onAccountClick, onAchievementsClick }: GameHUDProps) {
   const { user } = useCurrentUser();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <div className="relative z-30 flex items-center justify-between px-2 py-2 md:px-4 md:py-3">
@@ -57,6 +63,20 @@ export function GameHUD({ onAccountClick, onAchievementsClick }: GameHUDProps) {
             >
               <Trophy className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Achievements</span>
+            </Button>
+            {/* Theme toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="text-spirit-light/70 hover:text-spirit-light hover:bg-spirit-glow/10"
+              aria-label={theme === 'dark' ? 'Switch to Day Mode' : 'Switch to Night Mode'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </Button>
           </>
         ) : (
