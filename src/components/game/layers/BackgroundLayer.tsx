@@ -387,7 +387,7 @@ function ConfigModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-forest-modal border border-spirit-muted/20 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-cinzel font-semibold text-spirit-light">Scene Configuration</h2>
@@ -534,7 +534,7 @@ export function BackgroundLayer() {
       {/* Configuration button */}
       <button
         type="button"
-        className="absolute top-2 right-2 z-30 rounded-full bg-black/40 text-emerald-100 px-3 py-1.5 text-xs hover:bg-black/60 transition-colors flex items-center gap-1.5 shadow-lg"
+        className="absolute top-2 right-2 z-[60] rounded-full bg-black/40 text-emerald-100 px-3 py-1.5 text-xs hover:bg-black/60 transition-colors flex items-center gap-1.5 shadow-lg"
         onClick={() => setIsConfigOpen(true)}
       >
         <Settings className="w-3.5 h-3.5" />
