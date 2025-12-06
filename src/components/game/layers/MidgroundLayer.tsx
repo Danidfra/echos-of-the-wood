@@ -23,31 +23,6 @@ export function MidgroundLayer() {
     <div className="absolute inset-0 z-10 pointer-events-none">
       {/* Foreground tree silhouettes */}
       <div className="absolute inset-x-0 bottom-0 h-1/2">
-        {/* Left tree cluster */}
-        <svg 
-          viewBox="0 0 100 100" 
-          preserveAspectRatio="xMinYMax meet" 
-          className="absolute left-0 bottom-0 h-full w-1/4 opacity-70"
-        >
-          <path 
-            d="M0,100 L0,60 Q5,40 10,55 Q12,30 18,50 Q20,35 25,55 Q28,45 30,60 L30,100 Z" 
-            fill="currentColor" 
-            className="text-forest-tree"
-          />
-        </svg>
-        
-        {/* Right tree cluster */}
-        <svg 
-          viewBox="0 0 100 100" 
-          preserveAspectRatio="xMaxYMax meet" 
-          className="absolute right-0 bottom-0 h-full w-1/4 opacity-70"
-        >
-          <path 
-            d="M70,100 L70,55 Q75,40 80,50 Q82,25 88,45 Q90,35 95,50 Q98,45 100,60 L100,100 Z" 
-            fill="currentColor" 
-            className="text-forest-tree"
-          />
-        </svg>
       </div>
       
       {/* Ground vegetation / grass hints */}
