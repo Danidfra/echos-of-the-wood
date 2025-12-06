@@ -62,7 +62,29 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Echos of the Wood - Custom forest theme colors
+				forest: {
+					dark: '#0a1410',      // Deepest forest night
+					mid: '#0d1f18',       // Mid forest darkness
+					deep: '#071210',      // Forest floor
+					sky: '#0f2922',       // Night sky through canopy
+					canopy: '#0a1a14',    // Dense canopy
+					floor: '#081510',     // Forest ground
+					silhouette: '#051008', // Tree silhouettes
+					tree: '#0a1810',      // Foreground trees
+					ground: '#060d08',    // Ground vegetation
+					modal: '#0c1812',     // Modal background
+				},
+				spirit: {
+					glow: '#7dd3a8',      // Main spirit glow color (soft green)
+					light: '#e8f5ee',     // Light text color
+					muted: '#5a7d6a',     // Muted/disabled text
 				}
+			},
+			fontFamily: {
+				cinzel: ['Cinzel Variable', 'Cinzel', 'serif'],
+				cormorant: ['Cormorant Garamond', 'serif'],
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

@@ -35,19 +35,12 @@
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -97,5 +90,72 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Echos of the Wood - Custom Styles */
+@layer utilities {
+  /* Radial vignette effect for forest atmosphere */
+  .bg-radial-vignette {
+    background: radial-gradient(
+      ellipse at center,
+      transparent 0%,
+      transparent 50%,
+      rgba(10, 20, 15, 0.4) 100%
+    );
+  }
+}
+
+/* Custom animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-20px) translateX(10px);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-10px) translateX(-5px);
+    opacity: 0.4;
+  }
+  75% {
+    transform: translateY(-25px) translateX(5px);
+    opacity: 0.5;
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(-15px) translateX(8px);
+    opacity: 0.4;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 5s ease-in-out infinite;
+  }
+  
+  .animate-float-slow {
+    animation: float-slow 8s ease-in-out infinite;
+  }
+  
+  .animate-spin-slow {
+    animation: spin-slow 3s linear infinite;
   }
 }

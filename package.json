@@ -10,7 +10,9 @@
     "deploy": "npm run build && npx -y nostr-deploy-cli deploy --skip-setup"
   },
   "dependencies": {
+    "@fontsource-variable/cinzel": "^5.2.8",
     "@fontsource-variable/inter": "^5.2.6",
+    "@fontsource/cormorant-garamond": "^5.2.11",
     "@getalby/sdk": "^5.1.1",
     "@hookform/resolvers": "^3.9.0",
     "@nostrify/nostrify": "^0.47.1",

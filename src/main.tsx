@@ -5,10 +5,14 @@ import './lib/polyfills.ts';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import App from './App.tsx';
-import './index.css';
 
-// FIXME: a custom font should be used. Eg:
-// import '@fontsource-variable/<font-name>';
+// Import fonts
+import '@fontsource-variable/cinzel';
+import '@fontsource/cormorant-garamond/400.css';
+import '@fontsource/cormorant-garamond/500.css';
+import '@fontsource/cormorant-garamond/600.css';
+
+import './index.css';
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>

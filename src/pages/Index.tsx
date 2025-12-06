@@ -1,21 +1,22 @@
 import { useSeoMeta } from '@unhead/react';
 
-// FIXME: Update this page (the content is just a fallback if you fail to update the page)
+// This page is no longer used - LandingPage is now the main entry point
+// Keeping for backwards compatibility with any direct imports
 
 const Index = () => {
   useSeoMeta({
-    title: 'Welcome to Your Blank App',
-    description: 'A modern Nostr client application built with React, TailwindCSS, and Nostrify.',
+    title: 'Echos of the Wood',
+    description: 'A calming exploration game where you observe, encounter, and interact with small luminous spirits in an enchanted forest.',
   });
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
       <div className="text-center">
         <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">
-          Welcome to Your Blank App
+          Echos of the Wood
         </h1>
         <p className="text-xl text-gray-600 dark:text-gray-400">
-          Start building your amazing project here!
+          A calming exploration game in an enchanted forest.
         </p>
       </div>
     </div>
