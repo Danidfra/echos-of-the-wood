@@ -21,8 +21,8 @@ const SPIRIT_CONFIGS = [
 ];
 
 const SPEED_MULTIPLIERS = {
-  fast: 2.5,
-  medium: 1.2,
+  fast: 1.5,
+  medium: 0.2,
 };
 
 export function SpiritLayer({ onSpiritClick }: SpiritLayerProps) {

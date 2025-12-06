@@ -63,23 +63,23 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// Echos of the Wood - Custom forest theme colors
+				// Echos of the Wood - Custom forest theme colors (CSS variable based)
 				forest: {
-					dark: '#0a1410',      // Deepest forest night
-					mid: '#0d1f18',       // Mid forest darkness
-					deep: '#071210',      // Forest floor
-					sky: '#0f2922',       // Night sky through canopy
-					canopy: '#0a1a14',    // Dense canopy
-					floor: '#081510',     // Forest ground
-					silhouette: '#051008', // Tree silhouettes
-					tree: '#0a1810',      // Foreground trees
-					ground: '#060d08',    // Ground vegetation
-					modal: '#0c1812',     // Modal background
+					dark: 'var(--forest-dark)',
+					mid: 'var(--forest-mid)',
+					deep: 'var(--forest-deep)',
+					sky: 'var(--forest-sky)',
+					canopy: 'var(--forest-canopy)',
+					floor: 'var(--forest-floor)',
+					silhouette: 'var(--forest-silhouette)',
+					tree: 'var(--forest-tree)',
+					ground: 'var(--forest-ground)',
+					modal: 'var(--forest-modal)',
 				},
 				spirit: {
-					glow: '#7dd3a8',      // Main spirit glow color (soft green)
-					light: '#e8f5ee',     // Light text color
-					muted: '#5a7d6a',     // Muted/disabled text
+					glow: 'var(--spirit-glow)',
+					light: 'var(--spirit-light)',
+					muted: 'var(--spirit-muted)',
 				}
 			},
 			fontFamily: {

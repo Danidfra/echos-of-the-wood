@@ -42,6 +42,23 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Echos of the Wood - Light Theme (Day Mode) */
+    /* Soft, misty morning forest with golden-green tones */
+    --forest-dark: #d4e6dc;
+    --forest-mid: #c5ddd0;
+    --forest-deep: #b8d4c4;
+    --forest-sky: #e8f4ed;
+    --forest-canopy: #d0e4d8;
+    --forest-floor: #c2d9cc;
+    --forest-silhouette: #8fb59e;
+    --forest-tree: #7aa38a;
+    --forest-ground: #9ec4ab;
+    --forest-modal: #e2f0e8;
+    
+    --spirit-glow: #2d8a5e;
+    --spirit-light: #1a3d2a;
+    --spirit-muted: #6b9a7d;
   }
 
   .dark {
@@ -80,6 +97,23 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Echos of the Wood - Dark Theme (Night Mode) */
+    /* Deep, mystical night forest with cool blue-green tones */
+    --forest-dark: #0a1410;
+    --forest-mid: #0d1f18;
+    --forest-deep: #071210;
+    --forest-sky: #0f2922;
+    --forest-canopy: #0a1a14;
+    --forest-floor: #081510;
+    --forest-silhouette: #051008;
+    --forest-tree: #0a1810;
+    --forest-ground: #060d08;
+    --forest-modal: #0c1812;
+    
+    --spirit-glow: #7dd3a8;
+    --spirit-light: #e8f5ee;
+    --spirit-muted: #5a7d6a;
   }
 }
 
@@ -97,6 +131,25 @@
 @layer utilities {
   /* Radial vignette effect for forest atmosphere */
   .bg-radial-vignette {
+    background: radial-gradient(
+      ellipse at center,
+      transparent 0%,
+      transparent 50%,
+      rgba(10, 20, 15, 0.4) 100%
+    );
+  }
+
+  /* Light mode vignette */
+  :root .bg-radial-vignette {
+    background: radial-gradient(
+      ellipse at center,
+      transparent 0%,
+      transparent 50%,
+      rgba(100, 140, 120, 0.2) 100%
+    );
+  }
+
+  .dark .bg-radial-vignette {
     background: radial-gradient(
       ellipse at center,
       transparent 0%,

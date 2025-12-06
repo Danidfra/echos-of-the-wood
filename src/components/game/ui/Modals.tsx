@@ -1,5 +1,6 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useLoginActions } from '@/hooks/useLoginActions';
+import { useTheme } from '@/hooks/useTheme';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Lock, Sparkles, Eye, BookOpen, Heart } from 'lucide-react';
+import { Lock, Sparkles, Eye, BookOpen, Heart, LogOut, Sun, Moon } from 'lucide-react';
 
 interface ModalProps {
   open: boolean;
@@ -77,14 +78,25 @@ export function LoginRequiredModal({ open, onOpenChange }: ModalProps) {
 /**
  * AccountModal
  *
- * Shows user account information and stats.
+ * Shows user account information, stats, and settings.
  */
 export function AccountModal({ open, onOpenChange }: ModalProps) {
   const { user } = useCurrentUser();
+  const { logout } = useLoginActions();
+  const { theme, setTheme } = useTheme();
 
   const shortenedPubkey = user?.pubkey
     ? `${user.pubkey.slice(0, 8)}...${user.pubkey.slice(-8)}`
     : 'Not connected';
+
+  const handleLogout = async () => {
+    await logout();
+    onOpenChange(false);
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -137,6 +149,57 @@ export function AccountModal({ open, onOpenChange }: ModalProps) {
               </Badge>
             </div>
           </div>
+
+          <Separator className="bg-spirit-glow/20" />
+
+          {/* Settings */}
+          <div className="space-y-3">
+            <h3 className="font-cinzel text-lg text-spirit-light/90">Settings</h3>
+            
+            {/* Theme toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-forest-dark/30 border border-spirit-glow/10">
+              <div className="flex items-center gap-2 text-spirit-light/80">
+                {theme === 'dark' ? (
+                  <Moon className="w-4 h-4" />
+                ) : (
+                  <Sun className="w-4 h-4" />
+                )}
+                <span className="font-cormorant">
+                  {theme === 'dark' ? 'Night Mode' : 'Day Mode'}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleTheme}
+                className="text-spirit-glow hover:text-spirit-light hover:bg-spirit-glow/10"
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-4 h-4 mr-1" />
+                    Switch to Day
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 mr-1" />
+                    Switch to Night
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <Separator className="bg-spirit-glow/20" />
+
+          {/* Logout button */}
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Log Out
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
