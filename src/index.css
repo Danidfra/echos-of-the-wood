@@ -55,14 +55,14 @@
     --forest-tree: #7aa38a;
     --forest-ground: #9ec4ab;
     --forest-modal: #e2f0e8;
-    
+
     --spirit-glow: #2d8a5e;
     --spirit-light: #1a3d2a;
     --spirit-muted: #6b9a7d;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 220 84% 8%;
     --foreground: 210 40% 98%;
 
     --card: 222.2 84% 4.9%;
@@ -99,18 +99,18 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Echos of the Wood - Dark Theme (Night Mode) */
-    /* Deep, mystical night forest with cool blue-green tones */
-    --forest-dark: #0a1410;
-    --forest-mid: #0d1f18;
-    --forest-deep: #071210;
-    --forest-sky: #0f2922;
-    --forest-canopy: #0a1a14;
-    --forest-floor: #081510;
-    --forest-silhouette: #051008;
-    --forest-tree: #0a1810;
-    --forest-ground: #060d08;
-    --forest-modal: #0c1812;
-    
+    /* Soft, deep night forest with improved visibility */
+    --forest-dark: #0f1c1a;
+    --forest-mid: #142520;
+    --forest-deep: #0a1614;
+    --forest-sky: #0c1f2a;
+    --forest-canopy: #132823;
+    --forest-floor: #0e1f1a;
+    --forest-silhouette: #0a1411;
+    --forest-tree: #122119;
+    --forest-ground: #0f1a16;
+    --forest-modal: #152421;
+
     --spirit-glow: #7dd3a8;
     --spirit-light: #e8f5ee;
     --spirit-muted: #5a7d6a;
@@ -134,8 +134,8 @@
     background: radial-gradient(
       ellipse at center,
       transparent 0%,
-      transparent 50%,
-      rgba(10, 20, 15, 0.4) 100%
+      transparent 60%,
+      rgba(15, 28, 20, 0.3) 100%
     );
   }
 
@@ -144,8 +144,8 @@
     background: radial-gradient(
       ellipse at center,
       transparent 0%,
-      transparent 50%,
-      rgba(100, 140, 120, 0.2) 100%
+      transparent 60%,
+      rgba(100, 140, 120, 0.15) 100%
     );
   }
 
@@ -153,8 +153,8 @@
     background: radial-gradient(
       ellipse at center,
       transparent 0%,
-      transparent 50%,
-      rgba(10, 20, 15, 0.4) 100%
+      transparent 60%,
+      rgba(15, 28, 20, 0.3) 100%
     );
   }
 }
@@ -203,11 +203,11 @@
   .animate-float {
     animation: float 5s ease-in-out infinite;
   }
-  
+
   .animate-float-slow {
     animation: float-slow 8s ease-in-out infinite;
   }
-  
+
   .animate-spin-slow {
     animation: spin-slow 3s linear infinite;
   }
