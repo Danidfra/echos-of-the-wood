@@ -62,10 +62,10 @@
   }
 
   .dark {
-    --background: 220 84% 8%;
+    --background: 220 84% 10%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 220 84% 12%;
     --card-foreground: 210 40% 98%;
 
     --popover: 222.2 84% 4.9%;
@@ -74,20 +74,20 @@
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 217.2 32.6% 20%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 217.2 32.6% 20%;
+    --muted-foreground: 215 20.2% 70%;
 
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 217.2 32.6% 20%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 217.2 32.6% 20%;
+    --input: 217.2 32.6% 20%;
     --ring: 212.7 26.8% 83.9%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -100,20 +100,20 @@
 
     /* Echos of the Wood - Dark Theme (Night Mode) */
     /* Soft, deep night forest with improved visibility */
-    --forest-dark: #0f1c1a;
-    --forest-mid: #142520;
-    --forest-deep: #0a1614;
-    --forest-sky: #0c1f2a;
-    --forest-canopy: #132823;
-    --forest-floor: #0e1f1a;
-    --forest-silhouette: #0a1411;
-    --forest-tree: #122119;
-    --forest-ground: #0f1a16;
-    --forest-modal: #152421;
+    --forest-dark: #142522;
+    --forest-mid: #1a3029;
+    --forest-deep: #0f1a17;
+    --forest-sky: #0d2330;
+    --forest-canopy: #152e27;
+    --forest-floor: #0f1f1a;
+    --forest-silhouette: #0b1612;
+    --forest-tree: #13241e;
+    --forest-ground: #121d18;
+    --forest-modal: #182924;
 
-    --spirit-glow: #7dd3a8;
-    --spirit-light: #e8f5ee;
-    --spirit-muted: #5a7d6a;
+    --spirit-glow: #8ee4b7;
+    --spirit-light: #f0fdf9;
+    --spirit-muted: #6b9a7d;
   }
 }
 
