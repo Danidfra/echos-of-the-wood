@@ -1,170 +1,212 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { ResolvedSpiritConfig } from '@/game/spirits/types';
+import { getSpiritById, getRandomSpiritsForInitialSpawn } from '@/game/spirits/registry';
 
-interface Spirit {
-  id: string;
-  x: number;
-  y: number;
+/**
+ * Active spirit instance at runtime.
+ * Combines config with current position, velocity, and expiration.
+ */
+interface ActiveSpirit {
+  instanceId: string;         // unique per instance
+  configId: string;           // ResolvedSpiritConfig.id
+  config: ResolvedSpiritConfig;
+
+  x: number;                  // in %
+  y: number;                  // in %
   vx: number;
   vy: number;
-  size: number;
-  speed: 'fast' | 'medium';
-  hue: number;
+  expiresAt: number;          // timestamp (performance.now + lifetimeMs)
 }
 
 interface SpiritLayerProps {
   onSpiritClick: (id: string) => void;
 }
 
-const SPIRIT_CONFIGS = [
-  { id: 'spirit-1', speed: 'fast' as const, size: 16, hue: 180 },
-  { id: 'spirit-2', speed: 'medium' as const, size: 20, hue: 120 },
-];
+/**
+ * Exposed API for debug spawning.
+ */
+export interface SpiritLayerHandle {
+  spawnById: (spiritId: string) => void;
+}
 
-const SPEED_MULTIPLIERS = {
-  fast: 1.5,
-  medium: 0.2,
-};
+let instanceCounter = 0;
 
-export function SpiritLayer({ onSpiritClick }: SpiritLayerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number | null>(null);
-  const [spirits, setSpirits] = useState<Spirit[]>([]);
+export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
+  ({ onSpiritClick }, ref) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const animationRef = useRef<number | null>(null);
+    const [spirits, setSpirits] = useState<ActiveSpirit[]>([]);
 
-  // Initialize spirits with random positions and velocities
-  const initializeSpirits = useCallback(() => {
-    return SPIRIT_CONFIGS.map((config) => ({
-      ...config,
-      x: 20 + Math.random() * 60, // percentage
-      y: 20 + Math.random() * 60, // percentage
-      vx: (Math.random() - 0.5) * 2,
-      vy: (Math.random() - 0.5) * 2,
-    }));
-  }, []);
+    /**
+     * Create a new active spirit from a resolved config.
+     */
+    const createActiveSpirit = useCallback((config: ResolvedSpiritConfig): ActiveSpirit => {
+      return {
+        instanceId: `spirit-instance-${++instanceCounter}`,
+        configId: config.id,
+        config,
+        x: 20 + Math.random() * 60, // percentage
+        y: 20 + Math.random() * 60, // percentage
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        expiresAt: performance.now() + config.lifetimeMs,
+      };
+    }, []);
 
-  // Animation loop
-  useEffect(() => {
-    setSpirits(initializeSpirits());
+    /**
+     * Spawn a spirit by its config ID (for debug UI).
+     */
+    const spawnById = useCallback((spiritId: string) => {
+      const config = getSpiritById(spiritId);
+      if (!config) {
+        console.warn(`Spirit config not found: ${spiritId}`);
+        return;
+      }
 
-    let lastTime = performance.now();
+      const newSpirit = createActiveSpirit(config);
+      setSpirits(prev => [...prev, newSpirit]);
+    }, [createActiveSpirit]);
 
-    const animate = (currentTime: number) => {
-      const deltaTime = (currentTime - lastTime) / 16.67; // Normalize to ~60fps
-      lastTime = currentTime;
+    // Expose spawnById to parent via ref
+    useImperativeHandle(ref, () => ({
+      spawnById,
+    }), [spawnById]);
 
-      setSpirits((prevSpirits) =>
-        prevSpirits.map((spirit) => {
-          const speedMultiplier = SPEED_MULTIPLIERS[spirit.speed];
-          let newX = spirit.x + spirit.vx * speedMultiplier * deltaTime * 0.3;
-          let newY = spirit.y + spirit.vy * speedMultiplier * deltaTime * 0.3;
-          let newVx = spirit.vx;
-          let newVy = spirit.vy;
+    // Initialize with random spirits on mount
+    useEffect(() => {
+      const initialConfigs = getRandomSpiritsForInitialSpawn('simple-glow', 3);
+      const initialSpirits = initialConfigs.map(createActiveSpirit);
+      setSpirits(initialSpirits);
+    }, [createActiveSpirit]);
 
-          // Boundary checking with bounce
-          const margin = 5; // percentage margin from edges
-          const maxX = 95;
-          const maxY = 95;
+    // Animation loop
+    useEffect(() => {
+      let lastTime = performance.now();
 
-          if (newX < margin) {
-            newX = margin;
-            newVx = Math.abs(newVx) * (0.8 + Math.random() * 0.4);
-            // Add slight randomness to direction
-            newVy += (Math.random() - 0.5) * 0.5;
-          } else if (newX > maxX) {
-            newX = maxX;
-            newVx = -Math.abs(newVx) * (0.8 + Math.random() * 0.4);
-            newVy += (Math.random() - 0.5) * 0.5;
-          }
+      const animate = (currentTime: number) => {
+        const deltaTime = (currentTime - lastTime) / 16.67; // Normalize to ~60fps
+        lastTime = currentTime;
 
-          if (newY < margin) {
-            newY = margin;
-            newVy = Math.abs(newVy) * (0.8 + Math.random() * 0.4);
-            newVx += (Math.random() - 0.5) * 0.5;
-          } else if (newY > maxY) {
-            newY = maxY;
-            newVy = -Math.abs(newVy) * (0.8 + Math.random() * 0.4);
-            newVx += (Math.random() - 0.5) * 0.5;
-          }
+        setSpirits((prevSpirits) => {
+          // Remove expired spirits
+          const activeSpirits = prevSpirits.filter(spirit => spirit.expiresAt > currentTime);
 
-          // Occasional random direction changes
-          if (Math.random() < 0.005) {
-            newVx += (Math.random() - 0.5) * 1;
-            newVy += (Math.random() - 0.5) * 1;
-          }
+          // Update positions
+          return activeSpirits.map((spirit) => {
+            const speedMultiplier = spirit.config.speed;
+            let newX = spirit.x + spirit.vx * speedMultiplier * deltaTime * 0.3;
+            let newY = spirit.y + spirit.vy * speedMultiplier * deltaTime * 0.3;
+            let newVx = spirit.vx;
+            let newVy = spirit.vy;
 
-          // Clamp velocity
-          const maxVel = 2;
-          newVx = Math.max(-maxVel, Math.min(maxVel, newVx));
-          newVy = Math.max(-maxVel, Math.min(maxVel, newVy));
+            // Boundary checking with bounce
+            const margin = 5; // percentage margin from edges
+            const maxX = 95;
+            const maxY = 95;
 
-          return {
-            ...spirit,
-            x: newX,
-            y: newY,
-            vx: newVx,
-            vy: newVy,
-          };
-        })
-      );
+            if (newX < margin) {
+              newX = margin;
+              newVx = Math.abs(newVx) * (0.8 + Math.random() * 0.4);
+              // Add slight randomness to direction
+              newVy += (Math.random() - 0.5) * 0.5;
+            } else if (newX > maxX) {
+              newX = maxX;
+              newVx = -Math.abs(newVx) * (0.8 + Math.random() * 0.4);
+              newVy += (Math.random() - 0.5) * 0.5;
+            }
+
+            if (newY < margin) {
+              newY = margin;
+              newVy = Math.abs(newVy) * (0.8 + Math.random() * 0.4);
+              newVx += (Math.random() - 0.5) * 0.5;
+            } else if (newY > maxY) {
+              newY = maxY;
+              newVy = -Math.abs(newVy) * (0.8 + Math.random() * 0.4);
+              newVx += (Math.random() - 0.5) * 0.5;
+            }
+
+            // Occasional random direction changes
+            if (Math.random() < 0.005) {
+              newVx += (Math.random() - 0.5) * 1;
+              newVy += (Math.random() - 0.5) * 1;
+            }
+
+            // Clamp velocity
+            const maxVel = 2;
+            newVx = Math.max(-maxVel, Math.min(maxVel, newVx));
+            newVy = Math.max(-maxVel, Math.min(maxVel, newVy));
+
+            return {
+              ...spirit,
+              x: newX,
+              y: newY,
+              vx: newVx,
+              vy: newVy,
+            };
+          });
+        });
+
+        animationRef.current = requestAnimationFrame(animate);
+      };
 
       animationRef.current = requestAnimationFrame(animate);
-    };
 
-    animationRef.current = requestAnimationFrame(animate);
+      return () => {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+        }
+      };
+    }, []);
 
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [initializeSpirits]);
-
-  return (
-    <div ref={containerRef} className="absolute inset-0 z-20">
-      {spirits.map((spirit) => (
-        <button
-          key={spirit.id}
-          onClick={() => onSpiritClick(spirit.id)}
-          className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
-          style={{
-            left: `${spirit.x}%`,
-            top: `${spirit.y}%`,
-            width: spirit.size,
-            height: spirit.size,
-          }}
-          aria-label={`Spirit orb ${spirit.id}`}
-        >
-          {/* Core glow */}
-          <div
-            className="absolute inset-0 rounded-full animate-pulse"
+    return (
+      <div ref={containerRef} className="absolute inset-0 z-20">
+        {spirits.map((spirit) => (
+          <button
+            key={spirit.instanceId}
+            onClick={() => onSpiritClick(spirit.instanceId)}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
             style={{
-              background: `radial-gradient(circle, 
-                hsl(${spirit.hue}, 80%, 80%) 0%, 
-                hsl(${spirit.hue}, 70%, 60%) 30%, 
-                hsl(${spirit.hue}, 60%, 40%) 60%, 
-                transparent 100%)`,
-              boxShadow: `
-                0 0 ${spirit.size}px hsl(${spirit.hue}, 70%, 60%),
-                0 0 ${spirit.size * 2}px hsl(${spirit.hue}, 60%, 50%),
-                0 0 ${spirit.size * 3}px hsl(${spirit.hue}, 50%, 40%)
-              `,
+              left: `${spirit.x}%`,
+              top: `${spirit.y}%`,
+              width: spirit.config.size,
+              height: spirit.config.size,
             }}
-          />
-          {/* Inner bright core */}
-          <div
-            className="absolute rounded-full"
-            style={{
-              top: '25%',
-              left: '25%',
-              width: '50%',
-              height: '50%',
-              background: `radial-gradient(circle, 
-                white 0%, 
-                hsl(${spirit.hue}, 80%, 90%) 50%, 
-                transparent 100%)`,
-            }}
-          />
-        </button>
-      ))}
-    </div>
-  );
-}
+            aria-label={`${spirit.config.displayName} (${spirit.config.rarity})`}
+            title={spirit.config.displayName}
+          >
+            {/* Core glow */}
+            <div
+              className="absolute inset-0 rounded-full animate-pulse"
+              style={{
+                background: `radial-gradient(circle,
+                  hsl(${spirit.config.hue}, 80%, 80%) 0%,
+                  hsl(${spirit.config.hue}, 70%, 60%) 30%,
+                  hsl(${spirit.config.hue}, 60%, 40%) 60%,
+                  transparent 100%)`,
+                boxShadow: `
+                  0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 70%, 60%),
+                  0 0 ${spirit.config.size * 2}px hsl(${spirit.config.hue}, 60%, 50%),
+                  0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 50%, 40%)
+                `,
+              }}
+            />
+            {/* Inner bright core */}
+            <div
+              className="absolute rounded-full"
+              style={{
+                top: '25%',
+                left: '25%',
+                width: '50%',
+                height: '50%',
+                background: `radial-gradient(circle,
+                  white 0%,
+                  hsl(${spirit.config.hue}, 80%, 90%) 50%,
+                  transparent 100%)`,
+              }}
+            />
+          </button>
+        ))}
+      </div>
+    );
+  }
+);

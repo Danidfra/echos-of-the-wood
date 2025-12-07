@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Settings } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings, Sparkles } from 'lucide-react';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { MidgroundLayer } from './layers/MidgroundLayer';
-import { SpiritLayer } from './layers/SpiritLayer';
+import { SpiritLayer, SpiritLayerHandle } from './layers/SpiritLayer';
+import { getSpiritsByBehaviorAndRarity } from '@/game/spirits/registry';
+import { SpiritBehaviorType, SpiritRarity } from '@/game/spirits/types';
+import { RARITIES } from '@/game/spirits/rarities';
 
 /**
  * Determines if it's nighttime based on the user's local browser time.
@@ -86,12 +89,27 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
   const [isNight, setIsNight] = useState<boolean>(() => getInitialIsNight());
 
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isSpiritsDebugOpen, setIsSpiritsDebugOpen] = useState(false);
+
+  // Spirits debug state
+  const [selectedBehavior, setSelectedBehavior] = useState<SpiritBehaviorType>('simple-glow');
+  const [selectedRarity, setSelectedRarity] = useState<SpiritRarity | 'all'>('all');
+
+  // Ref to SpiritLayer for spawning spirits
+  const spiritLayerRef = useRef<SpiritLayerHandle>(null);
 
   // Persist grass settings to localStorage whenever they change
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(GRASS_SETTINGS_KEY, JSON.stringify(grassSettings));
   }, [grassSettings]);
+
+  // Get filtered spirits for debug modal
+  const filteredSpirits = getSpiritsByBehaviorAndRarity(selectedBehavior, selectedRarity);
+
+  const handleSpawnSpirit = (spiritId: string) => {
+    spiritLayerRef.current?.spawnById(spiritId);
+  };
 
   return (
     <div className="relative w-full max-w-6xl mx-auto">
@@ -114,17 +132,30 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
           />
 
           {/* Layer 3: Spirits */}
-          <SpiritLayer onSpiritClick={onSpiritClick} />
+          <SpiritLayer ref={spiritLayerRef} onSpiritClick={onSpiritClick} />
 
-          {/* Scene Configuration Button */}
-          <button
-            type="button"
-            className="absolute top-2 right-2 z-40 rounded-full bg-black/40 text-emerald-100 px-3 py-1.5 text-xs hover:bg-black/60 transition-colors flex items-center gap-1.5 shadow-lg"
-            onClick={() => setIsConfigOpen(true)}
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span>Scene</span>
-          </button>
+          {/* Debug buttons container */}
+          <div className="absolute top-2 right-2 z-40 flex items-center gap-2">
+            {/* Spirits Debug Button */}
+            <button
+              type="button"
+              className="rounded-full bg-black/40 text-emerald-100 px-3 py-1.5 text-xs hover:bg-black/60 transition-colors flex items-center gap-1.5 shadow-lg"
+              onClick={() => setIsSpiritsDebugOpen(true)}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Spirits</span>
+            </button>
+
+            {/* Scene Configuration Button */}
+            <button
+              type="button"
+              className="rounded-full bg-black/40 text-emerald-100 px-3 py-1.5 text-xs hover:bg-black/60 transition-colors flex items-center gap-1.5 shadow-lg"
+              onClick={() => setIsConfigOpen(true)}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Scene</span>
+            </button>
+          </div>
 
           {/* Scene Configuration Modal */}
           {isConfigOpen && (
@@ -293,6 +324,135 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                   <button
                     type="button"
                     onClick={() => setIsConfigOpen(false)}
+                    className="px-6 py-2 bg-spirit-glow/20 hover:bg-spirit-glow/30 text-spirit-light rounded-lg font-medium transition-colors border border-spirit-glow/30"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Spirits Debug Modal */}
+          {isSpiritsDebugOpen && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="bg-forest-modal border border-spirit-muted/20 rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-cinzel font-semibold text-spirit-light">Spirits Debug</h2>
+                  <button
+                    type="button"
+                    onClick={() => setIsSpiritsDebugOpen(false)}
+                    className="text-spirit-muted hover:text-spirit-light transition-colors"
+                    aria-label="Close"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Filters */}
+                <div className="space-y-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Behavior filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-spirit-light mb-2">
+                        Behavior
+                      </label>
+                      <select
+                        value={selectedBehavior}
+                        onChange={(e) => setSelectedBehavior(e.target.value as SpiritBehaviorType)}
+                        className="w-full px-3 py-2 bg-forest-dark text-spirit-light rounded-lg border border-spirit-muted/20 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50"
+                      >
+                        <option value="simple-glow">Simple Glow</option>
+                        {/* Future behaviors will appear here automatically */}
+                      </select>
+                    </div>
+
+                    {/* Rarity filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-spirit-light mb-2">
+                        Rarity
+                      </label>
+                      <select
+                        value={selectedRarity}
+                        onChange={(e) => setSelectedRarity(e.target.value as SpiritRarity | 'all')}
+                        className="w-full px-3 py-2 bg-forest-dark text-spirit-light rounded-lg border border-spirit-muted/20 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50"
+                      >
+                        <option value="all">All</option>
+                        <option value="common">Common</option>
+                        <option value="uncommon">Uncommon</option>
+                        <option value="rare">Rare</option>
+                        <option value="mythic">Mythic</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Spirits list */}
+                <div className="flex-1 overflow-y-auto space-y-3">
+                  {filteredSpirits.length === 0 ? (
+                    <p className="text-center text-spirit-muted py-8">No spirits found</p>
+                  ) : (
+                    filteredSpirits.map((spirit) => {
+                      const rarityDef = RARITIES[spirit.rarity];
+                      return (
+                        <div
+                          key={spirit.id}
+                          className="bg-forest-dark/50 border border-spirit-muted/20 rounded-lg p-4 hover:border-spirit-glow/30 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-medium text-spirit-light">{spirit.displayName}</h3>
+                                <span
+                                  className="text-xs px-2 py-0.5 rounded-full"
+                                  style={{
+                                    backgroundColor: `hsl(${spirit.hue}, 50%, 20%)`,
+                                    color: `hsl(${spirit.hue}, 80%, 80%)`,
+                                    border: `1px solid hsl(${spirit.hue}, 60%, 40%)`,
+                                  }}
+                                >
+                                  {rarityDef.label}
+                                </span>
+                              </div>
+                              <p className="text-xs text-spirit-muted mb-2">ID: {spirit.id}</p>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-spirit-muted">
+                                <div>Speed: <span className="text-spirit-light">{spirit.speed.toFixed(2)}x</span></div>
+                                <div>Size: <span className="text-spirit-light">{spirit.size}px</span></div>
+                                <div>Lifetime: <span className="text-spirit-light">{(spirit.lifetimeMs / 1000).toFixed(1)}s</span></div>
+                                <div>Connections: <span className="text-spirit-light">{spirit.connectionsRequired}</span></div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleSpawnSpirit(spirit.id)}
+                              className="px-4 py-2 bg-spirit-glow/20 hover:bg-spirit-glow/30 text-spirit-light rounded-lg font-medium transition-colors border border-spirit-glow/30 text-sm whitespace-nowrap"
+                            >
+                              Spawn
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsSpiritsDebugOpen(false)}
                     className="px-6 py-2 bg-spirit-glow/20 hover:bg-spirit-glow/30 text-spirit-light rounded-lg font-medium transition-colors border border-spirit-glow/30"
                   >
                     Close
