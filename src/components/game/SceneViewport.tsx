@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { MidgroundLayer } from './layers/MidgroundLayer';
@@ -20,21 +20,78 @@ function getInitialIsNight(): boolean {
   return isNightTime;
 }
 
+interface GrassSettings {
+  grassCount: number;
+  grassHeightFactor: number;
+  fps: number;
+}
+
+const GRASS_SETTINGS_KEY = 'echosOfTheWood:grassSettings';
+
+/**
+ * Load grass settings from localStorage with fallback to defaults.
+ * SSR-safe: returns defaults if window is undefined.
+ */
+function loadInitialGrassSettings(): GrassSettings {
+  if (typeof window === 'undefined') {
+    return {
+      grassCount: 200,
+      grassHeightFactor: 0.6,
+      fps: 30,
+    };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(GRASS_SETTINGS_KEY);
+    if (!raw) {
+      return {
+        grassCount: 200,
+        grassHeightFactor: 0.6,
+        fps: 30,
+      };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<GrassSettings>;
+
+    return {
+      grassCount: typeof parsed.grassCount === 'number' ? parsed.grassCount : 200,
+      grassHeightFactor:
+        typeof parsed.grassHeightFactor === 'number' ? parsed.grassHeightFactor : 0.6,
+      fps: typeof parsed.fps === 'number' ? parsed.fps : 30,
+    };
+  } catch {
+    return {
+      grassCount: 200,
+      grassHeightFactor: 0.6,
+      fps: 30,
+    };
+  }
+}
+
 interface SceneViewportProps {
   onSpiritClick: (id: string) => void;
 }
 
 export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
-  // Scene configuration state
-  const [grassCount, setGrassCount] = useState(150);
-  const [grassHeightFactor, setGrassHeightFactor] = useState(0.4);
-  const [fps, setFps] = useState(30);
+  // Grass configuration state - persisted in localStorage
+  const [grassSettings, setGrassSettings] = useState<GrassSettings>(() =>
+    loadInitialGrassSettings()
+  );
+
+  // Derive individual values for convenience
+  const { grassCount, grassHeightFactor, fps } = grassSettings;
 
   // isNight is initialized from the user's local time (browser).
   // On reload, it recalculates, but can be overridden via the Scene config toggle (dev helper).
   const [isNight, setIsNight] = useState<boolean>(() => getInitialIsNight());
 
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  // Persist grass settings to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(GRASS_SETTINGS_KEY, JSON.stringify(grassSettings));
+  }, [grassSettings]);
 
   return (
     <div className="relative w-full max-w-6xl mx-auto">
@@ -53,6 +110,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
             grassCount={grassCount}
             grassHeightFactor={grassHeightFactor}
             fps={fps}
+            isNight={isNight}
           />
 
           {/* Layer 3: Spirits */}
@@ -109,7 +167,12 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                       min={20}
                       max={400}
                       value={grassCount}
-                      onChange={(e) => setGrassCount(Number(e.target.value))}
+                      onChange={(e) =>
+                        setGrassSettings((prev) => ({
+                          ...prev,
+                          grassCount: Number(e.target.value),
+                        }))
+                      }
                       className="w-full h-2 bg-forest-dark rounded-lg appearance-none cursor-pointer accent-spirit-glow"
                     />
                     <div className="flex justify-between text-xs text-spirit-muted mt-1">
@@ -129,7 +192,12 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                       min={10}
                       max={70}
                       value={Math.round(grassHeightFactor * 100)}
-                      onChange={(e) => setGrassHeightFactor(Number(e.target.value) / 100)}
+                      onChange={(e) =>
+                        setGrassSettings((prev) => ({
+                          ...prev,
+                          grassHeightFactor: Number(e.target.value) / 100,
+                        }))
+                      }
                       className="w-full h-2 bg-forest-dark rounded-lg appearance-none cursor-pointer accent-spirit-glow"
                     />
                     <div className="flex justify-between text-xs text-spirit-muted mt-1">
@@ -149,7 +217,12 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                       min={10}
                       max={60}
                       value={fps}
-                      onChange={(e) => setFps(Number(e.target.value))}
+                      onChange={(e) =>
+                        setGrassSettings((prev) => ({
+                          ...prev,
+                          fps: Number(e.target.value),
+                        }))
+                      }
                       className="w-full h-2 bg-forest-dark rounded-lg appearance-none cursor-pointer accent-spirit-glow"
                     />
                     <div className="flex justify-between text-xs text-spirit-muted mt-1">

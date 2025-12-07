@@ -129,7 +129,8 @@ function createGrassObject(
   seg2: number,
   maxAngle: number,
   grassWidth: number,
-  h: number
+  h: number,
+  isNight: boolean
 ): GrassObject {
   // Internal state
   let counter = 0;
@@ -149,10 +150,21 @@ function createGrassObject(
   }
 
   // Create gradient for this grass blade
-  function getGradient(min: number, max: number): CanvasGradient {
+  function getGradient(min: number, max: number, isNight: boolean): CanvasGradient {
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(1, `rgb(0,${Math.floor(min)},0)`);
-    g.addColorStop(0, `rgb(0,${Math.floor(max)},0)`);
+
+    if (!isNight) {
+      // Day: original green
+      g.addColorStop(1, `rgb(0,${Math.floor(min)},0)`);
+      g.addColorStop(0, `rgb(0,${Math.floor(max)},0)`);
+    } else {
+      // Night: darker teal / blue-green
+      const baseMin = Math.floor(min);
+      const baseMax = Math.floor(max);
+      g.addColorStop(1, `rgb(0,${Math.floor(baseMin * 0.6)},${Math.floor(baseMin * 0.9)})`);
+      g.addColorStop(0, `rgb(0,${Math.floor(baseMax * 0.7)},${Math.floor(baseMax)})`);
+    }
+
     return g;
   }
 
@@ -165,7 +177,7 @@ function createGrassObject(
     delta = (4 * Math.random() + 1) / 100;
   }
 
-  const gradient = getGradient(Math.random() * 50 + 50, 100 * Math.random() + 170);
+  const gradient = getGradient(Math.random() * 50 + 50, 100 * Math.random() + 170, isNight);
   let currentAngle = 0;
 
   // Initialize
@@ -205,7 +217,8 @@ function makeGrass(
   height: number,
   hVariation: number,
   grassWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  isNight: boolean
 ): GrassObject[] {
   const grass: GrassObject[] = [];
   const hf = height * hVariation;
@@ -217,7 +230,7 @@ function makeGrass(
     const seg2 = (y / 3) * 2 + y * hVariation * Math.random() * 0.1;
     const maxAngle = 15 * Math.random() + 50;
 
-    grass.push(createGrassObject(ctx, x, y, seg1, seg2, maxAngle, grassWidth, canvasHeight));
+    grass.push(createGrassObject(ctx, x, y, seg1, seg2, maxAngle, grassWidth, canvasHeight, isNight));
   }
 
   return grass;
@@ -293,9 +306,10 @@ interface GrassLayerProps {
   grassCount: number;
   grassHeightFactor: number;
   fps: number;
+  isNight: boolean;
 }
 
-function GrassLayer({ grassCount, grassHeightFactor, fps }: GrassLayerProps) {
+function GrassLayer({ grassCount, grassHeightFactor, fps, isNight }: GrassLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const grassRef = useRef<GrassObject[]>([]);
   const animationIdRef = useRef<number>(0);
@@ -326,7 +340,7 @@ function GrassLayer({ grassCount, grassHeightFactor, fps }: GrassLayerProps) {
       h = canvas.height;
 
       // Regenerate grass with new dimensions
-      grassRef.current = makeGrass(ctx, grassCount, w, h * grassHeightFactor, 0.3, 12, h);
+      grassRef.current = makeGrass(ctx, grassCount, w, h * grassHeightFactor, 0.3, 12, h, isNight);
     };
 
     resizeCanvas();
@@ -360,7 +374,7 @@ function GrassLayer({ grassCount, grassHeightFactor, fps }: GrassLayerProps) {
       window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationIdRef.current);
     };
-  }, [grassCount, grassHeightFactor, fps]);
+  }, [grassCount, grassHeightFactor, fps, isNight]);
 
   return (
     <div className="absolute inset-x-0 bottom-0 h-1/3 pointer-events-none">
@@ -377,9 +391,10 @@ interface MidgroundLayerProps {
   grassCount: number;
   grassHeightFactor: number;
   fps: number;
+  isNight: boolean;
 }
 
-export function MidgroundLayer({ grassCount, grassHeightFactor, fps }: MidgroundLayerProps) {
+export function MidgroundLayer({ grassCount, grassHeightFactor, fps, isNight }: MidgroundLayerProps) {
   return (
     <div className="absolute inset-0 z-10 pointer-events-none">
       {/* Foreground tree silhouettes */}
@@ -391,6 +406,7 @@ export function MidgroundLayer({ grassCount, grassHeightFactor, fps }: Midground
         grassCount={grassCount}
         grassHeightFactor={grassHeightFactor}
         fps={fps}
+        isNight={isNight}
       />
 
       {/* Future: mushrooms, bushes, lanterns, etc. */}
