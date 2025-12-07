@@ -25,14 +25,14 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
         {/* Absolute positioned content container */}
         <div className="absolute inset-0">
           {/* Layer 1: Background */}
-          <BackgroundLayer
+          <BackgroundLayer />
+
+          {/* Layer 2: Midground */}
+          <MidgroundLayer
             grassCount={grassCount}
             grassHeightFactor={grassHeightFactor}
             fps={fps}
           />
-
-          {/* Layer 2: Midground */}
-          <MidgroundLayer />
 
           {/* Layer 3: Spirits */}
           <SpiritLayer onSpiritClick={onSpiritClick} />
