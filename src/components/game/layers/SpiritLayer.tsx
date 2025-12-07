@@ -168,28 +168,35 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                   const normY = dy / distance;
 
                   if (isApproachMode) {
-                    // APPROACH MODE: override velocity to move directly toward cursor
-                    const baseApproachStrength = 0.25;
+                    // APPROACH MODE: fast, decisive movement toward cursor
+                    // Use distance-based strength: far = strong pull, close = gentle
+                    const baseApproachStrength = 1.2;
+                    const distanceFactor = Math.min(distance / 50, 1); // 0..1, normalized to 50% container
+                    const approachStrength = baseApproachStrength * (0.4 + distanceFactor * 0.6);
 
-                    // Increase strength with distance so far spirits come in faster
-                    const distanceFactor = Math.min(distance / 100, 1); // 0..1
-                    const approachStrength = baseApproachStrength + distanceFactor * 0.2;
-
-                    // Override velocity instead of just nudging
-                    newVx = -normX * approachStrength;
-                    newVy = -normY * approachStrength;
+                    // Override velocity to move directly toward cursor (lock-on effect)
+                    newVx = -normX * approachStrength * spirit.config.speed;
+                    newVy = -normY * approachStrength * spirit.config.speed;
 
                     // Recalculate position with new approach velocity
                     newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
                     newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
 
-                    // Snap to cursor when very close
-                    const snapRadius = 1.5; // in % of container
-                    if (distance < snapRadius) {
-                      newX = cursor.xPct;
-                      newY = cursor.yPct;
-                      newVx = 0;
-                      newVy = 0;
+                    // Soft stabilization when very close (reduces orbiting)
+                    const softLockRadius = 3.0; // in % of container
+                    if (distance < softLockRadius) {
+                      // Dampen velocity as we get close to prevent orbiting
+                      const dampingFactor = distance / softLockRadius; // 0..1
+                      newVx *= dampingFactor * 0.3;
+                      newVy *= dampingFactor * 0.3;
+
+                      // Snap to cursor when extremely close
+                      if (distance < 0.8) {
+                        newX = cursor.xPct;
+                        newY = cursor.yPct;
+                        newVx = 0;
+                        newVy = 0;
+                      }
                     }
                   } else {
                     // FLEE MODE: repel from cursor when it's close
