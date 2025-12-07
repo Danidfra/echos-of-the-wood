@@ -160,7 +160,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
           {/* Scene Configuration Modal */}
           {isConfigOpen && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-              <div className="bg-forest-modal border border-spirit-muted/20 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6">
+              <div className="bg-forest-modal border border-spirit-muted/20 rounded-xl shadow-2xl w-[90%] max-w-sm mx-4 p-6 max-h-[90%] flex flex-col">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-cinzel font-semibold text-spirit-light">Scene Configuration</h2>
                   <button
@@ -186,7 +186,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                   </button>
                 </div>
 
-                <div className="space-y-6 text-sm text-emerald-50">
+                <div className="flex-1 overflow-y-auto space-y-6 text-sm text-emerald-50">
                   {/* Grass Density */}
                   <div>
                     <label className="flex justify-between mb-2">
@@ -336,7 +336,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
           {/* Spirits Debug Modal */}
           {isSpiritsDebugOpen && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-              <div className="bg-forest-modal border border-spirit-muted/20 rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col">
+              <div className="bg-forest-modal border border-spirit-muted/20 rounded-xl shadow-2xl w-[90%] max-w-2xl mx-4 p-6 max-h-[90%] flex flex-col">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-cinzel font-semibold text-spirit-light">Spirits Debug</h2>
                   <button
@@ -401,7 +401,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                 </div>
 
                 {/* Spirits list */}
-                <div className="flex-1 overflow-y-auto space-y-3">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2">
                   {filteredSpirits.length === 0 ? (
                     <p className="text-center text-spirit-muted py-8">No spirits found</p>
                   ) : (
