@@ -13,6 +13,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
   const [grassCount, setGrassCount] = useState(150);
   const [grassHeightFactor, setGrassHeightFactor] = useState(0.4);
   const [fps, setFps] = useState(30);
+  const [isNight, setIsNight] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   return (
@@ -25,7 +26,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
         {/* Absolute positioned content container */}
         <div className="absolute inset-0">
           {/* Layer 1: Background */}
-          <BackgroundLayer />
+          <BackgroundLayer isNight={isNight} />
 
           {/* Layer 2: Midground */}
           <MidgroundLayer
@@ -135,6 +136,63 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                       <span>10 FPS</span>
                       <span>60 FPS</span>
                     </div>
+                  </div>
+
+                  {/* Day/Night Toggle */}
+                  <div>
+                    <label className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-spirit-light">Time of day</span>
+                      <span className="text-spirit-glow font-mono">{isNight ? 'Night' : 'Day'}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsNight(!isNight)}
+                      className="w-full px-4 py-2 bg-spirit-glow/10 hover:bg-spirit-glow/20 text-spirit-light rounded-lg font-medium transition-colors border border-spirit-glow/30 flex items-center justify-center gap-2"
+                    >
+                      {isNight ? (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                          </svg>
+                          Switch to Day
+                        </>
+                      ) : (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="12" cy="12" r="4" />
+                            <path d="M12 2v2" />
+                            <path d="M12 20v2" />
+                            <path d="m4.93 4.93 1.41 1.41" />
+                            <path d="m17.66 17.66 1.41 1.41" />
+                            <path d="M2 12h2" />
+                            <path d="M20 12h2" />
+                            <path d="m6.34 17.66-1.41 1.41" />
+                            <path d="m19.07 4.93-1.41 1.41" />
+                          </svg>
+                          Switch to Night
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 
