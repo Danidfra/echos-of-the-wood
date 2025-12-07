@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { SceneViewport } from '@/components/game/SceneViewport';
+import { SpiritClickPayload } from '@/components/game/layers/SpiritLayer';
 import { GameHUD } from '@/components/game/ui/GameHUD';
-import { 
-  LoginRequiredModal, 
-  AccountModal, 
-  AchievementsModal 
+import {
+  LoginRequiredModal,
+  AccountModal,
+  AchievementsModal
 } from '@/components/game/ui/Modals';
 import { RotateDeviceOverlay } from '@/components/game/ui/RotateDeviceOverlay';
 
@@ -15,11 +16,11 @@ export default function GamePage() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState(false);
 
-  const handleSpiritClick = (id: string) => {
+  const handleSpiritClick = (payload: SpiritClickPayload) => {
     if (!user) {
       setShowLoginModal(true);
     } else {
-      console.log("Spirit clicked", id);
+      console.log("Spirit clicked", payload);
     }
   };
 
@@ -43,17 +44,17 @@ export default function GamePage() {
       </div>
 
       {/* Modals */}
-      <LoginRequiredModal 
-        open={showLoginModal} 
-        onOpenChange={setShowLoginModal} 
+      <LoginRequiredModal
+        open={showLoginModal}
+        onOpenChange={setShowLoginModal}
       />
-      <AccountModal 
-        open={showAccountModal} 
-        onOpenChange={setShowAccountModal} 
+      <AccountModal
+        open={showAccountModal}
+        onOpenChange={setShowAccountModal}
       />
-      <AchievementsModal 
-        open={showAchievementsModal} 
-        onOpenChange={setShowAchievementsModal} 
+      <AchievementsModal
+        open={showAchievementsModal}
+        onOpenChange={setShowAchievementsModal}
       />
     </div>
   );

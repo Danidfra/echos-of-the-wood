@@ -1,6 +1,6 @@
 /**
  * Spirit System Types
- * 
+ *
  * Defines the core type system for spirits including behaviors, rarities,
  * and configuration structures.
  */
@@ -9,8 +9,8 @@ export type SpiritRarity = 'common' | 'uncommon' | 'rare' | 'mythic';
 
 export type SpiritBehaviorType =
   | 'simple-glow'
+  | 'shy'
   // Future behaviors:
-  // | 'shy'
   // | 'hunter'
   // | 'curious'
   // | 'rhythm'

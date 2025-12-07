@@ -1,6 +1,6 @@
 /**
  * Spirit Registry
- * 
+ *
  * Central registry for all spirit configurations.
  * Resolves variant configs into final runtime configs by applying base + rarity + variant multipliers.
  */
@@ -9,6 +9,8 @@ import { SpiritBaseConfig, SpiritVariantConfig, ResolvedSpiritConfig, SpiritBeha
 import { RARITIES } from './rarities';
 import { SIMPLE_GLOW_BASE } from './simpleGlow/base';
 import { SIMPLE_GLOW_VARIANTS } from './simpleGlow/variants';
+import { SHY_BASE } from './shy/base';
+import { SHY_VARIANTS } from './shy/variants';
 
 // ============================================================================
 // BASE CONFIGS REGISTRY
@@ -16,8 +18,8 @@ import { SIMPLE_GLOW_VARIANTS } from './simpleGlow/variants';
 
 const BASES: Record<string, SpiritBaseConfig> = {
   'simple-glow': SIMPLE_GLOW_BASE,
+  'shy': SHY_BASE,
   // Future behaviors:
-  // 'shy': SHY_BASE,
   // 'hunter': HUNTER_BASE,
   // 'curious': CURIOUS_BASE,
   // etc.
@@ -87,8 +89,8 @@ function resolveSpiritVariant(variant: SpiritVariantConfig): ResolvedSpiritConfi
  */
 export const ALL_RESOLVED_SPIRITS: ResolvedSpiritConfig[] = [
   ...SIMPLE_GLOW_VARIANTS.map(resolveSpiritVariant),
+  ...SHY_VARIANTS.map(resolveSpiritVariant),
   // Future behaviors will be added here:
-  // ...SHY_VARIANTS.map(resolveSpiritVariant),
   // ...HUNTER_VARIANTS.map(resolveSpiritVariant),
   // etc.
 ];

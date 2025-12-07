@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Settings, Sparkles } from 'lucide-react';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { MidgroundLayer } from './layers/MidgroundLayer';
-import { SpiritLayer, SpiritLayerHandle } from './layers/SpiritLayer';
+import { SpiritLayer, SpiritLayerHandle, SpiritClickPayload } from './layers/SpiritLayer';
 import { getSpiritsByBehaviorAndRarity } from '@/game/spirits/registry';
 import { SpiritBehaviorType, SpiritRarity } from '@/game/spirits/types';
 import { RARITIES } from '@/game/spirits/rarities';
@@ -72,7 +72,7 @@ function loadInitialGrassSettings(): GrassSettings {
 }
 
 interface SceneViewportProps {
-  onSpiritClick: (id: string) => void;
+  onSpiritClick?: (payload: SpiritClickPayload) => void;
 }
 
 export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
@@ -104,6 +104,21 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
     window.localStorage.setItem(GRASS_SETTINGS_KEY, JSON.stringify(grassSettings));
   }, [grassSettings]);
 
+  // Internal handler for spirit clicks - logs and forwards to parent
+  const handleSpiritClickInternal = (payload: SpiritClickPayload) => {
+    // Basic debug log for now (will be used later for synchronization/badges)
+    console.log('[Spirit Clicked]', {
+      instanceId: payload.instanceId,
+      configId: payload.configId,
+      name: payload.config.displayName,
+      rarity: payload.config.rarity,
+    });
+
+    if (onSpiritClick) {
+      onSpiritClick(payload);
+    }
+  };
+
   // Get filtered spirits for debug modal
   const filteredSpirits = getSpiritsByBehaviorAndRarity(selectedBehavior, selectedRarity);
 
@@ -132,7 +147,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
           />
 
           {/* Layer 3: Spirits */}
-          <SpiritLayer ref={spiritLayerRef} onSpiritClick={onSpiritClick} />
+          <SpiritLayer ref={spiritLayerRef} onSpiritClick={handleSpiritClickInternal} />
 
           {/* Debug buttons container */}
           <div className="absolute top-2 right-2 z-40 flex items-center gap-2">
@@ -376,6 +391,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                         className="w-full px-3 py-2 bg-forest-dark text-spirit-light rounded-lg border border-spirit-muted/20 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50"
                       >
                         <option value="simple-glow">Simple Glow</option>
+                        <option value="shy">Shy</option>
                         {/* Future behaviors will appear here automatically */}
                       </select>
                     </div>
