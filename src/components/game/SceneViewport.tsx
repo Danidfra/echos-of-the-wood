@@ -4,6 +4,22 @@ import { BackgroundLayer } from './layers/BackgroundLayer';
 import { MidgroundLayer } from './layers/MidgroundLayer';
 import { SpiritLayer } from './layers/SpiritLayer';
 
+/**
+ * Determines if it's nighttime based on the user's local browser time.
+ * Night is defined as hours before 6:00 AM or after 6:00 PM (18:00).
+ *
+ * @returns true if it's nighttime in the user's timezone, false otherwise
+ */
+function getInitialIsNight(): boolean {
+  const now = new Date();
+  const hour = now.getHours(); // 0-23, local time
+
+  // Night from 18:00 (6 PM) to 6:00 (6 AM)
+  const isNightTime = hour < 6 || hour >= 18;
+
+  return isNightTime;
+}
+
 interface SceneViewportProps {
   onSpiritClick: (id: string) => void;
 }
@@ -13,7 +29,11 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
   const [grassCount, setGrassCount] = useState(150);
   const [grassHeightFactor, setGrassHeightFactor] = useState(0.4);
   const [fps, setFps] = useState(30);
-  const [isNight, setIsNight] = useState(false);
+
+  // isNight is initialized from the user's local time (browser).
+  // On reload, it recalculates, but can be overridden via the Scene config toggle (dev helper).
+  const [isNight, setIsNight] = useState<boolean>(() => getInitialIsNight());
+
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   return (
