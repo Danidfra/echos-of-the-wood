@@ -29,6 +29,7 @@ interface ActiveSpirit {
     curiosityProgress: number;  // 0..1, how close to awakening
     lastCursorX: number;        // for tracking movement delta
     lastCursorY: number;
+    hasReachedCircle: boolean;  // true when spirit enters the circle
   };
 }
 
@@ -182,6 +183,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                   lastGentleInteractionAt: 0,
                   lastCursorX: cursor?.xPct ?? 0,
                   lastCursorY: cursor?.yPct ?? 0,
+                  hasReachedCircle: false,
                 };
               }
 
@@ -191,7 +193,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 const distance = Math.hypot(dx, dy);
 
                 // Define thresholds for gentle vs sudden movement
-                const gentleMovementMaxDelta = 1.5; // % per frame
+                const gentleMovementMaxDelta = 1.8; // % per frame (slightly more forgiving)
                 const suddenMovementThreshold = 3.5; // % per frame
                 const interactionRadius = 30; // % of container
 
@@ -199,123 +201,138 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 const isSuddenMovement = movementDelta >= suddenMovementThreshold;
                 const isNearCursor = distance < interactionRadius;
 
-                // Detect sudden movement - startle the spirit
-                if (isSuddenMovement) {
-                  // Reset curiosity if awakened
-                  if (spirit.curiousState.isAwakened) {
-                    spirit.curiousState.isAwakened = false;
-                    spirit.curiousState.curiosityCircle = undefined;
-                    spirit.curiousState.curiosityProgress = 0;
-                  } else {
-                    // Reduce progress if building up
+                // ===== PHASE 1: Building Curiosity (Not Awakened) =====
+                if (!spirit.curiousState.isAwakened) {
+                  // Detect sudden movement - startle and reset progress
+                  if (isSuddenMovement) {
                     spirit.curiousState.curiosityProgress = Math.max(0, spirit.curiousState.curiosityProgress - 0.3);
+
+                    // Apply flee impulse
+                    if (distance > 0 && distance < 25) {
+                      const normX = dx / distance;
+                      const normY = dy / distance;
+                      const fleeStrength = 1.5;
+                      newVx += normX * fleeStrength;
+                      newVy += normY * fleeStrength;
+                    }
                   }
 
-                  // Apply flee impulse
-                  if (distance > 0 && distance < 25) {
-                    const normX = dx / distance;
-                    const normY = dy / distance;
-                    const fleeStrength = 1.5;
-                    newVx += normX * fleeStrength;
-                    newVy += normY * fleeStrength;
+                  // Build curiosity with gentle movement near the spirit
+                  if (isGentleMovement && isNearCursor) {
+                    // Calculate time-based awakening (2-4 seconds of gentle orbiting)
+                    const awakeningTimeMs = Math.max(2000, Math.min(4000,
+                      (spirit.config.lifetimeMs * 0.10) / spirit.config.speed
+                    ));
+
+                    // Increment progress (more generous to make awakening achievable)
+                    spirit.curiousState.curiosityProgress = Math.min(1,
+                      spirit.curiousState.curiosityProgress + (deltaTime * 1.2 / (awakeningTimeMs / 16.67))
+                    );
+                    spirit.curiousState.lastGentleInteractionAt = currentTime;
+
+                    // Drift slightly toward cursor while building curiosity
+                    if (distance > 0) {
+                      const normX = dx / distance;
+                      const normY = dy / distance;
+                      const driftStrength = 0.15 * spirit.curiousState.curiosityProgress;
+                      newVx -= normX * driftStrength;
+                      newVy -= normY * driftStrength;
+                    }
+
+                    // ===== AWAKENING TRIGGER: Spawn circle relative to spirit =====
+                    if (spirit.curiousState.curiosityProgress >= 1) {
+                      spirit.curiousState.isAwakened = true;
+
+                      // Spawn circle at a good distance from spirit's current position
+                      const angle = Math.random() * Math.PI * 2;
+                      const distanceFromSpirit = 20 + Math.random() * 12; // 20-32% of container
+                      const circleX = spirit.x + Math.cos(angle) * distanceFromSpirit;
+                      const circleY = spirit.y + Math.sin(angle) * distanceFromSpirit;
+                      const circleRadius = 7; // % of container
+
+                      // Clamp to safe area (10-90%)
+                      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+                      const safeX = clamp(circleX, 10, 90);
+                      const safeY = clamp(circleY, 10, 90);
+
+                      spirit.curiousState.curiosityCircle = {
+                        xPct: safeX,
+                        yPct: safeY,
+                        radiusPct: circleRadius,
+                      };
+                    }
+                  } else if (!isGentleMovement && !isSuddenMovement) {
+                    // Decay curiosity progress if not interacting gently
+                    spirit.curiousState.curiosityProgress = Math.max(0,
+                      spirit.curiousState.curiosityProgress - (deltaTime * 0.015)
+                    );
                   }
                 }
 
-                // Build curiosity with gentle movement
-                if (!spirit.curiousState.isAwakened && isGentleMovement && isNearCursor) {
-                  // Calculate time-based awakening
-                  const awakeningTimeMs = Math.max(2000, Math.min(4000,
-                    (spirit.config.lifetimeMs * 0.12) / spirit.config.speed
-                  ));
-
-                  // Increment progress
-                  spirit.curiousState.curiosityProgress = Math.min(1,
-                    spirit.curiousState.curiosityProgress + (deltaTime / (awakeningTimeMs / 16.67))
-                  );
-                  spirit.curiousState.lastGentleInteractionAt = currentTime;
-
-                  // Drift slightly toward cursor while building curiosity
-                  if (distance > 0) {
-                    const normX = dx / distance;
-                    const normY = dy / distance;
-                    const driftStrength = 0.15 * spirit.curiousState.curiosityProgress;
-                    newVx -= normX * driftStrength;
-                    newVy -= normY * driftStrength;
-                  }
-
-                  // Awaken when progress reaches 1
-                  if (spirit.curiousState.curiosityProgress >= 1) {
-                    spirit.curiousState.isAwakened = true;
-
-                    // Spawn curiosity circle in a safe zone (central area, not too close to edges)
-                    const circleX = 25 + Math.random() * 50; // 25-75%
-                    const circleY = 25 + Math.random() * 50; // 25-75%
-                    const circleRadius = 8; // % of container
-
-                    spirit.curiousState.curiosityCircle = {
-                      xPct: circleX,
-                      yPct: circleY,
-                      radiusPct: circleRadius,
-                    };
-                  }
-                } else if (!spirit.curiousState.isAwakened && !isGentleMovement && !isSuddenMovement) {
-                  // Decay curiosity progress if not interacting gently
-                  spirit.curiousState.curiosityProgress = Math.max(0,
-                    spirit.curiousState.curiosityProgress - (deltaTime * 0.02)
-                  );
-                }
-
-                // Behavior when curiosity is awakened
+                // ===== PHASE 2: Awakened Behavior (Circle exists, spirit is entranced) =====
                 if (spirit.curiousState.isAwakened && spirit.curiousState.curiosityCircle) {
                   const circle = spirit.curiousState.curiosityCircle;
                   const circleDx = circle.xPct - newX;
                   const circleDy = circle.yPct - newY;
                   const circleDistance = Math.hypot(circleDx, circleDy);
 
-                  // Check if spirit reached the circle
-                  if (circleDistance < circle.radiusPct) {
-                    // Spirit is inside the curiosity circle - stabilize
-                    if (circleDistance > 0) {
-                      const normX = circleDx / circleDistance;
-                      const normY = circleDy / circleDistance;
-                      const centeringStrength = 0.3;
-                      newVx = normX * centeringStrength;
-                      newVy = normY * centeringStrength;
+                  // Apply speed damping (entranced state - slower movement)
+                  const awakenedSpeedDamping = 0.6;
+
+                  // Check for sudden movement - can break awakened state
+                  if (isSuddenMovement && movementDelta > 5) {
+                    spirit.curiousState.isAwakened = false;
+                    spirit.curiousState.curiosityCircle = undefined;
+                    spirit.curiousState.curiosityProgress = 0;
+                    spirit.curiousState.hasReachedCircle = false;
+                  } else if (!spirit.curiousState.hasReachedCircle) {
+                    // ===== Circle Entry Detection =====
+                    if (circleDistance <= circle.radiusPct) {
+                      // Spirit entered the circle - mark as reached
+                      spirit.curiousState.hasReachedCircle = true;
+
+                      // Gently slow down and center
+                      newVx *= 0.3;
+                      newVy *= 0.3;
                     } else {
-                      // At exact center - stop movement
-                      newVx = 0;
-                      newVy = 0;
-                    }
-                  } else {
-                    // Move toward the circle
-                    // Strength depends on gentle movement continuing
-                    const baseAttraction = 0.8;
-                    let attractionStrength = baseAttraction;
+                      // Spirit is awakened but hasn't reached circle yet
+                      // Follow cursor with leash + blend attraction to circle
 
-                    if (isGentleMovement && isNearCursor) {
-                      // Gentle movement near spirit boosts attraction
-                      attractionStrength = baseAttraction * 1.3;
-                    } else if (isSuddenMovement) {
-                      // Sudden movement weakens or breaks attraction
-                      attractionStrength = baseAttraction * 0.3;
+                      const leashRadius = 35; // % of container
+                      const dxToCursor = cursor.xPct - newX;
+                      const dyToCursor = cursor.yPct - newY;
+                      const distToCursor = Math.hypot(dxToCursor, dyToCursor);
 
-                      // Chance to break curiosity on very sudden movement
-                      if (movementDelta > 5) {
-                        spirit.curiousState.isAwakened = false;
-                        spirit.curiousState.curiosityCircle = undefined;
-                        spirit.curiousState.curiosityProgress = 0;
+                      // Follow cursor when gentle movement is near
+                      if (distToCursor > 0 && distToCursor < leashRadius && isGentleMovement) {
+                        const followStrength = 0.4;
+                        const nx = dxToCursor / distToCursor;
+                        const ny = dyToCursor / distToCursor;
+
+                        newVx = nx * followStrength * spirit.config.speed;
+                        newVy = ny * followStrength * spirit.config.speed;
+
+                        newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                        newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
                       }
-                    }
 
-                    if (circleDistance > 0 && spirit.curiousState.isAwakened) {
-                      const normX = circleDx / circleDistance;
-                      const normY = circleDy / circleDistance;
-                      newVx = normX * attractionStrength * spirit.config.speed;
-                      newVy = normY * attractionStrength * spirit.config.speed;
+                      // Blend in attraction toward the circle
+                      if (circleDistance > 0) {
+                        const nxCircle = circleDx / circleDistance;
+                        const nyCircle = circleDy / circleDistance;
 
-                      // Recalculate position
-                      newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
-                      newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+                        const circleAttraction = 0.25;
+                        // Blend current velocity with attraction to circle
+                        newVx = newVx * 0.6 + nxCircle * circleAttraction * spirit.config.speed * 0.4;
+                        newVy = newVy * 0.6 + nyCircle * circleAttraction * spirit.config.speed * 0.4;
+
+                        newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                        newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+                      }
+
+                      // Apply awakened speed damping
+                      newVx *= awakenedSpeedDamping;
+                      newVy *= awakenedSpeedDamping;
                     }
                   }
                 }
