@@ -29,7 +29,13 @@ interface GrassSettings {
   fps: number;
 }
 
+interface AudioSettings {
+  ambientVolume: number;      // 0-100
+  isAmbientMuted: boolean;
+}
+
 const GRASS_SETTINGS_KEY = 'echosOfTheWood:grassSettings';
+const AUDIO_SETTINGS_KEY = 'echosOfTheWood:audioSettings';
 
 /**
  * Load grass settings from localStorage with fallback to defaults.
@@ -71,6 +77,41 @@ function loadInitialGrassSettings(): GrassSettings {
   }
 }
 
+/**
+ * Load audio settings from localStorage with fallback to defaults.
+ * SSR-safe: returns defaults if window is undefined.
+ */
+function loadInitialAudioSettings(): AudioSettings {
+  if (typeof window === 'undefined') {
+    return {
+      ambientVolume: 60,
+      isAmbientMuted: false,
+    };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(AUDIO_SETTINGS_KEY);
+    if (!raw) {
+      return {
+        ambientVolume: 60,
+        isAmbientMuted: false,
+      };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AudioSettings>;
+
+    return {
+      ambientVolume: typeof parsed.ambientVolume === 'number' ? parsed.ambientVolume : 60,
+      isAmbientMuted: typeof parsed.isAmbientMuted === 'boolean' ? parsed.isAmbientMuted : false,
+    };
+  } catch {
+    return {
+      ambientVolume: 60,
+      isAmbientMuted: false,
+    };
+  }
+}
+
 interface SceneViewportProps {
   onSpiritClick?: (payload: SpiritClickPayload) => void;
 }
@@ -81,8 +122,14 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
     loadInitialGrassSettings()
   );
 
+  // Audio configuration state - persisted in localStorage
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(() =>
+    loadInitialAudioSettings()
+  );
+
   // Derive individual values for convenience
   const { grassCount, grassHeightFactor, fps } = grassSettings;
+  const { ambientVolume, isAmbientMuted } = audioSettings;
 
   // isNight is initialized from the user's local time (browser).
   // On reload, it recalculates, but can be overridden via the Scene config toggle (dev helper).
@@ -103,6 +150,12 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(GRASS_SETTINGS_KEY, JSON.stringify(grassSettings));
   }, [grassSettings]);
+
+  // Persist audio settings to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(audioSettings));
+  }, [audioSettings]);
 
   // Internal handler for spirit clicks - logs and forwards to parent
   const handleSpiritClickInternal = (payload: SpiritClickPayload) => {
@@ -136,7 +189,11 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
         {/* Absolute positioned content container */}
         <div className="absolute inset-0">
           {/* Layer 1: Background */}
-          <BackgroundLayer isNight={isNight} />
+          <BackgroundLayer
+            isNight={isNight}
+            ambientVolume={ambientVolume}
+            isAmbientMuted={isAmbientMuted}
+          />
 
           {/* Layer 2: Midground */}
           <MidgroundLayer
@@ -329,6 +386,89 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                             <path d="m19.07 4.93-1.41 1.41" />
                           </svg>
                           Switch to Night
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Ambient Volume */}
+                  <div>
+                    <label className="flex justify-between mb-2">
+                      <span className="font-medium text-spirit-light">Ambient volume</span>
+                      <span className="text-spirit-glow font-mono">{ambientVolume}%</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={ambientVolume}
+                      onChange={(e) =>
+                        setAudioSettings((prev) => ({
+                          ...prev,
+                          ambientVolume: Number(e.target.value),
+                        }))
+                      }
+                      className="w-full h-2 bg-forest-dark rounded-lg appearance-none cursor-pointer accent-spirit-glow"
+                    />
+                    <div className="flex justify-between text-xs text-spirit-muted mt-1">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+
+                  {/* Mute Toggle */}
+                  <div>
+                    <label className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-spirit-light">Mute ambient sound</span>
+                      <span className="text-spirit-glow font-mono">{isAmbientMuted ? 'Muted' : 'Playing'}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAudioSettings((prev) => ({
+                          ...prev,
+                          isAmbientMuted: !prev.isAmbientMuted,
+                        }))
+                      }
+                      className="w-full px-4 py-2 bg-spirit-glow/10 hover:bg-spirit-glow/20 text-spirit-light rounded-lg font-medium transition-colors border border-spirit-glow/30 flex items-center justify-center gap-2"
+                    >
+                      {isAmbientMuted ? (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+                            <line x1="22" x2="16" y1="9" y2="15" />
+                            <line x1="16" x2="22" y1="9" y2="15" />
+                          </svg>
+                          Unmute
+                        </>
+                      ) : (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+                            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                            <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+                          </svg>
+                          Mute
                         </>
                       )}
                     </button>

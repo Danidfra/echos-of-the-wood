@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import florestDayImage from '@/assets/background/florest.png';
 import florestNightImage from '@/assets/background/florest-night.png';
+import forestAmbientAudio from '@/assets/audio/ambient/forest-ambient.mp3';
 
 /**
  * BackgroundLayer
@@ -8,6 +10,7 @@ import florestNightImage from '@/assets/background/florest-night.png';
  * Displays an enchanted forest background with:
  * - Image backgrounds (day/night variants)
  * - Floating fireflies
+ * - Ambient forest audio (looping)
  *
  * Future: Can be extended with seasonal variants (autumn, winter, etc.)
  */
@@ -25,14 +28,55 @@ const BACKGROUNDS = {
 
 interface BackgroundLayerProps {
   isNight?: boolean;
+  ambientVolume?: number;      // 0-100
+  isAmbientMuted?: boolean;
 }
 
-export function BackgroundLayer({ isNight = false }: BackgroundLayerProps) {
+export function BackgroundLayer({
+  isNight = false,
+  ambientVolume = 60,
+  isAmbientMuted = false,
+}: BackgroundLayerProps) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Select the appropriate background image
   const backgroundImage = isNight ? BACKGROUNDS.night : BACKGROUNDS.day;
 
+  // Initialize audio playback on mount
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Set loop and attempt to play
+    audio.loop = true;
+    audio.play().catch(() => {
+      // Autoplay may be blocked by browser - this is expected
+      // User interaction will be required to start playback
+    });
+  }, []);
+
+  // Update volume when ambientVolume changes
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Map 0-100 to 0.0-1.0
+    audio.volume = ambientVolume / 100;
+  }, [ambientVolume]);
+
+  // Update muted state when isAmbientMuted changes
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.muted = isAmbientMuted;
+  }, [isAmbientMuted]);
+
   return (
     <div className="absolute inset-0 z-0">
+      {/* Ambient forest audio */}
+      <audio ref={audioRef} src={forestAmbientAudio} />
+
       {/* Background image - fills entire viewport with object-cover */}
       <img
         src={backgroundImage}
