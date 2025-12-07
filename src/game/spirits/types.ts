@@ -11,8 +11,8 @@ export type SpiritBehaviorType =
   | 'simple-glow'
   | 'shy'
   | 'hunter'
+  | 'curious'
   // Future behaviors:
-  // | 'curious'
   // | 'rhythm'
   // | 'echo'
   // | 'orbit'

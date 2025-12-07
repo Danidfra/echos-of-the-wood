@@ -16,6 +16,20 @@ interface ActiveSpirit {
   vx: number;
   vy: number;
   expiresAt: number;          // timestamp (performance.now + lifetimeMs)
+
+  // Curious-specific state
+  curiousState?: {
+    isAwakened: boolean;
+    curiosityCircle?: {
+      xPct: number;
+      yPct: number;
+      radiusPct: number;
+    };
+    lastGentleInteractionAt: number;
+    curiosityProgress: number;  // 0..1, how close to awakening
+    lastCursorX: number;        // for tracking movement delta
+    lastCursorY: number;
+  };
 }
 
 /**
@@ -48,6 +62,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
     const [spirits, setSpirits] = useState<ActiveSpirit[]>([]);
     const cursorRef = useRef<{ xPct: number; yPct: number } | null>(null);
     const lastCursorMoveTimeRef = useRef<number>(performance.now());
+    const lastCursorPositionRef = useRef<{ xPct: number; yPct: number } | null>(null);
+    const cursorMovementDeltaRef = useRef<number>(0);
 
     /**
      * Create a new active spirit from a resolved config.
@@ -103,11 +119,19 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
         const prevCursor = cursorRef.current;
 
+        // Calculate movement delta for curious spirit behavior
+        if (lastCursorPositionRef.current) {
+          const dx = x - lastCursorPositionRef.current.xPct;
+          const dy = y - lastCursorPositionRef.current.yPct;
+          cursorMovementDeltaRef.current = Math.hypot(dx, dy);
+        }
+
         // Only update lastCursorMoveTime if cursor actually moved (ignore tiny noise)
         if (!prevCursor || Math.abs(prevCursor.xPct - x) > 0.1 || Math.abs(prevCursor.yPct - y) > 0.1) {
           lastCursorMoveTimeRef.current = performance.now();
         }
 
+        lastCursorPositionRef.current = { xPct: x, yPct: y };
         cursorRef.current = { xPct: x, yPct: y };
       };
 
@@ -146,7 +170,161 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
             let isHunterChasing = false;
 
             // 2) Behavior-specific adjustments
-            if (spirit.config.behavior === 'shy') {
+            if (spirit.config.behavior === 'curious') {
+              const cursor = cursorRef.current;
+              const movementDelta = cursorMovementDeltaRef.current;
+
+              // Initialize curious state if not present
+              if (!spirit.curiousState) {
+                spirit.curiousState = {
+                  isAwakened: false,
+                  curiosityProgress: 0,
+                  lastGentleInteractionAt: 0,
+                  lastCursorX: cursor?.xPct ?? 0,
+                  lastCursorY: cursor?.yPct ?? 0,
+                };
+              }
+
+              if (cursor) {
+                const dx = newX - cursor.xPct;
+                const dy = newY - cursor.yPct;
+                const distance = Math.hypot(dx, dy);
+
+                // Define thresholds for gentle vs sudden movement
+                const gentleMovementMaxDelta = 1.5; // % per frame
+                const suddenMovementThreshold = 3.5; // % per frame
+                const interactionRadius = 30; // % of container
+
+                const isGentleMovement = movementDelta < gentleMovementMaxDelta && movementDelta > 0.05;
+                const isSuddenMovement = movementDelta >= suddenMovementThreshold;
+                const isNearCursor = distance < interactionRadius;
+
+                // Detect sudden movement - startle the spirit
+                if (isSuddenMovement) {
+                  // Reset curiosity if awakened
+                  if (spirit.curiousState.isAwakened) {
+                    spirit.curiousState.isAwakened = false;
+                    spirit.curiousState.curiosityCircle = undefined;
+                    spirit.curiousState.curiosityProgress = 0;
+                  } else {
+                    // Reduce progress if building up
+                    spirit.curiousState.curiosityProgress = Math.max(0, spirit.curiousState.curiosityProgress - 0.3);
+                  }
+
+                  // Apply flee impulse
+                  if (distance > 0 && distance < 25) {
+                    const normX = dx / distance;
+                    const normY = dy / distance;
+                    const fleeStrength = 1.5;
+                    newVx += normX * fleeStrength;
+                    newVy += normY * fleeStrength;
+                  }
+                }
+
+                // Build curiosity with gentle movement
+                if (!spirit.curiousState.isAwakened && isGentleMovement && isNearCursor) {
+                  // Calculate time-based awakening
+                  const awakeningTimeMs = Math.max(2000, Math.min(4000,
+                    (spirit.config.lifetimeMs * 0.12) / spirit.config.speed
+                  ));
+
+                  // Increment progress
+                  spirit.curiousState.curiosityProgress = Math.min(1,
+                    spirit.curiousState.curiosityProgress + (deltaTime / (awakeningTimeMs / 16.67))
+                  );
+                  spirit.curiousState.lastGentleInteractionAt = currentTime;
+
+                  // Drift slightly toward cursor while building curiosity
+                  if (distance > 0) {
+                    const normX = dx / distance;
+                    const normY = dy / distance;
+                    const driftStrength = 0.15 * spirit.curiousState.curiosityProgress;
+                    newVx -= normX * driftStrength;
+                    newVy -= normY * driftStrength;
+                  }
+
+                  // Awaken when progress reaches 1
+                  if (spirit.curiousState.curiosityProgress >= 1) {
+                    spirit.curiousState.isAwakened = true;
+
+                    // Spawn curiosity circle in a safe zone (central area, not too close to edges)
+                    const circleX = 25 + Math.random() * 50; // 25-75%
+                    const circleY = 25 + Math.random() * 50; // 25-75%
+                    const circleRadius = 8; // % of container
+
+                    spirit.curiousState.curiosityCircle = {
+                      xPct: circleX,
+                      yPct: circleY,
+                      radiusPct: circleRadius,
+                    };
+                  }
+                } else if (!spirit.curiousState.isAwakened && !isGentleMovement && !isSuddenMovement) {
+                  // Decay curiosity progress if not interacting gently
+                  spirit.curiousState.curiosityProgress = Math.max(0,
+                    spirit.curiousState.curiosityProgress - (deltaTime * 0.02)
+                  );
+                }
+
+                // Behavior when curiosity is awakened
+                if (spirit.curiousState.isAwakened && spirit.curiousState.curiosityCircle) {
+                  const circle = spirit.curiousState.curiosityCircle;
+                  const circleDx = circle.xPct - newX;
+                  const circleDy = circle.yPct - newY;
+                  const circleDistance = Math.hypot(circleDx, circleDy);
+
+                  // Check if spirit reached the circle
+                  if (circleDistance < circle.radiusPct) {
+                    // Spirit is inside the curiosity circle - stabilize
+                    if (circleDistance > 0) {
+                      const normX = circleDx / circleDistance;
+                      const normY = circleDy / circleDistance;
+                      const centeringStrength = 0.3;
+                      newVx = normX * centeringStrength;
+                      newVy = normY * centeringStrength;
+                    } else {
+                      // At exact center - stop movement
+                      newVx = 0;
+                      newVy = 0;
+                    }
+                  } else {
+                    // Move toward the circle
+                    // Strength depends on gentle movement continuing
+                    const baseAttraction = 0.8;
+                    let attractionStrength = baseAttraction;
+
+                    if (isGentleMovement && isNearCursor) {
+                      // Gentle movement near spirit boosts attraction
+                      attractionStrength = baseAttraction * 1.3;
+                    } else if (isSuddenMovement) {
+                      // Sudden movement weakens or breaks attraction
+                      attractionStrength = baseAttraction * 0.3;
+
+                      // Chance to break curiosity on very sudden movement
+                      if (movementDelta > 5) {
+                        spirit.curiousState.isAwakened = false;
+                        spirit.curiousState.curiosityCircle = undefined;
+                        spirit.curiousState.curiosityProgress = 0;
+                      }
+                    }
+
+                    if (circleDistance > 0 && spirit.curiousState.isAwakened) {
+                      const normX = circleDx / circleDistance;
+                      const normY = circleDy / circleDistance;
+                      newVx = normX * attractionStrength * spirit.config.speed;
+                      newVy = normY * attractionStrength * spirit.config.speed;
+
+                      // Recalculate position
+                      newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                      newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+                    }
+                  }
+                }
+
+                // Update cursor tracking for next frame
+                spirit.curiousState.lastCursorX = cursor.xPct;
+                spirit.curiousState.lastCursorY = cursor.yPct;
+              }
+            } else if (spirit.config.behavior === 'shy') {
               const cursor = cursorRef.current;
               if (cursor) {
                 const dx = newX - cursor.xPct;
@@ -328,58 +506,147 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
     return (
       <div ref={containerRef} className="absolute inset-0 z-20">
-        {spirits.map((spirit) => (
-          <button
-            key={spirit.instanceId}
-            onClick={() =>
-              onSpiritClick({
-                instanceId: spirit.instanceId,
-                configId: spirit.configId,
-                config: spirit.config,
-              })
-            }
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
-            style={{
-              left: `${spirit.x}%`,
-              top: `${spirit.y}%`,
-              width: spirit.config.size,
-              height: spirit.config.size,
-            }}
-            aria-label={`${spirit.config.displayName} (${spirit.config.rarity})`}
-            title={spirit.config.displayName}
-          >
-            {/* Core glow */}
-            <div
-              className="absolute inset-0 rounded-full animate-pulse"
+        {/* Render curiosity circles */}
+        {spirits.map((spirit) => {
+          if (spirit.config.behavior === 'curious' && spirit.curiousState?.isAwakened && spirit.curiousState.curiosityCircle) {
+            const circle = spirit.curiousState.curiosityCircle;
+            return (
+              <div
+                key={`circle-${spirit.instanceId}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${circle.xPct}%`,
+                  top: `${circle.yPct}%`,
+                  width: `${circle.radiusPct * 2}%`,
+                  height: `${circle.radiusPct * 2}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div
+                  className="absolute inset-0 rounded-full animate-pulse"
+                  style={{
+                    border: `2px dashed hsl(${spirit.config.hue}, 70%, 60%)`,
+                    background: `radial-gradient(circle,
+                      hsl(${spirit.config.hue}, 70%, 60%, 0.1) 0%,
+                      hsl(${spirit.config.hue}, 60%, 50%, 0.05) 50%,
+                      transparent 100%)`,
+                    boxShadow: `
+                      0 0 20px hsl(${spirit.config.hue}, 70%, 60%, 0.3),
+                      inset 0 0 20px hsl(${spirit.config.hue}, 70%, 60%, 0.2)
+                    `,
+                  }}
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
+
+        {/* Render spirits */}
+        {spirits.map((spirit) => {
+          const isCurious = spirit.config.behavior === 'curious';
+          const isAwakened = isCurious && spirit.curiousState?.isAwakened;
+          const curiosityProgress = spirit.curiousState?.curiosityProgress ?? 0;
+
+          return (
+            <button
+              key={spirit.instanceId}
+              onClick={() =>
+                onSpiritClick({
+                  instanceId: spirit.instanceId,
+                  configId: spirit.configId,
+                  config: spirit.config,
+                })
+              }
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
               style={{
-                background: `radial-gradient(circle,
-                  hsl(${spirit.config.hue}, 80%, 80%) 0%,
-                  hsl(${spirit.config.hue}, 70%, 60%) 30%,
-                  hsl(${spirit.config.hue}, 60%, 40%) 60%,
-                  transparent 100%)`,
-                boxShadow: `
-                  0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 70%, 60%),
-                  0 0 ${spirit.config.size * 2}px hsl(${spirit.config.hue}, 60%, 50%),
-                  0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 50%, 40%)
-                `,
+                left: `${spirit.x}%`,
+                top: `${spirit.y}%`,
+                width: spirit.config.size,
+                height: spirit.config.size,
               }}
-            />
-            {/* Inner bright core */}
-            <div
-              className="absolute rounded-full"
-              style={{
-                top: '25%',
-                left: '25%',
-                width: '50%',
-                height: '50%',
-                background: `radial-gradient(circle,
-                  white 0%,
-                  hsl(${spirit.config.hue}, 80%, 90%) 50%,
-                  transparent 100%)`,
-              }}
-            />
-          </button>
-        ))}
+              aria-label={`${spirit.config.displayName} (${spirit.config.rarity})`}
+              title={spirit.config.displayName}
+            >
+              {/* Core glow - enhanced for awakened curious spirits */}
+              <div
+                className="absolute inset-0 rounded-full animate-pulse"
+                style={{
+                  background: `radial-gradient(circle,
+                    hsl(${spirit.config.hue}, 80%, 80%) 0%,
+                    hsl(${spirit.config.hue}, 70%, 60%) 30%,
+                    hsl(${spirit.config.hue}, 60%, 40%) 60%,
+                    transparent 100%)`,
+                  boxShadow: isAwakened
+                    ? `
+                      0 0 ${spirit.config.size * 1.5}px hsl(${spirit.config.hue}, 80%, 70%),
+                      0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 70%, 60%),
+                      0 0 ${spirit.config.size * 4.5}px hsl(${spirit.config.hue}, 60%, 50%)
+                    `
+                    : `
+                      0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 70%, 60%),
+                      0 0 ${spirit.config.size * 2}px hsl(${spirit.config.hue}, 60%, 50%),
+                      0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 50%, 40%)
+                    `,
+                }}
+              />
+              {/* Inner bright core */}
+              <div
+                className="absolute rounded-full"
+                style={{
+                  top: '25%',
+                  left: '25%',
+                  width: '50%',
+                  height: '50%',
+                  background: `radial-gradient(circle,
+                    white 0%,
+                    hsl(${spirit.config.hue}, 80%, 90%) 50%,
+                    transparent 100%)`,
+                }}
+              />
+              {/* Spark particles for awakened curious spirits */}
+              {isAwakened && (
+                <>
+                  {[0, 1, 2, 3, 4].map((i) => {
+                    const angle = (i / 5) * Math.PI * 2;
+                    const distance = spirit.config.size * 0.8;
+                    const sparkX = Math.cos(angle) * distance;
+                    const sparkY = Math.sin(angle) * distance;
+                    return (
+                      <div
+                        key={`spark-${i}`}
+                        className="absolute rounded-full animate-pulse"
+                        style={{
+                          left: '50%',
+                          top: '50%',
+                          width: spirit.config.size * 0.15,
+                          height: spirit.config.size * 0.15,
+                          transform: `translate(calc(-50% + ${sparkX}px), calc(-50% + ${sparkY}px))`,
+                          background: `radial-gradient(circle,
+                            hsl(${spirit.config.hue}, 90%, 85%) 0%,
+                            transparent 100%)`,
+                          boxShadow: `0 0 ${spirit.config.size * 0.3}px hsl(${spirit.config.hue}, 80%, 70%)`,
+                          animationDelay: `${i * 0.2}s`,
+                        }}
+                      />
+                    );
+                  })}
+                </>
+              )}
+              {/* Curiosity progress indicator (subtle ring for building curiosity) */}
+              {isCurious && !isAwakened && curiosityProgress > 0.1 && (
+                <div
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    border: `1px solid hsl(${spirit.config.hue}, 70%, 60%, ${curiosityProgress * 0.6})`,
+                    transform: `scale(${1 + curiosityProgress * 0.3})`,
+                    transition: 'all 0.3s ease-out',
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
     );
   }
