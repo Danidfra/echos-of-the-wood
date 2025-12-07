@@ -11,6 +11,8 @@ import { SIMPLE_GLOW_BASE } from './simpleGlow/base';
 import { SIMPLE_GLOW_VARIANTS } from './simpleGlow/variants';
 import { SHY_BASE } from './shy/base';
 import { SHY_VARIANTS } from './shy/variants';
+import { HUNTER_BASE } from './hunter/base';
+import { HUNTER_VARIANTS } from './hunter/variants';
 
 // ============================================================================
 // BASE CONFIGS REGISTRY
@@ -19,8 +21,8 @@ import { SHY_VARIANTS } from './shy/variants';
 const BASES: Record<string, SpiritBaseConfig> = {
   'simple-glow': SIMPLE_GLOW_BASE,
   'shy': SHY_BASE,
+  'hunter': HUNTER_BASE,
   // Future behaviors:
-  // 'hunter': HUNTER_BASE,
   // 'curious': CURIOUS_BASE,
   // etc.
 };
@@ -90,8 +92,8 @@ function resolveSpiritVariant(variant: SpiritVariantConfig): ResolvedSpiritConfi
 export const ALL_RESOLVED_SPIRITS: ResolvedSpiritConfig[] = [
   ...SIMPLE_GLOW_VARIANTS.map(resolveSpiritVariant),
   ...SHY_VARIANTS.map(resolveSpiritVariant),
+  ...HUNTER_VARIANTS.map(resolveSpiritVariant),
   // Future behaviors will be added here:
-  // ...HUNTER_VARIANTS.map(resolveSpiritVariant),
   // etc.
 ];
 

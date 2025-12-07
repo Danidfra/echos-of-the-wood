@@ -142,6 +142,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
             // Track if shy is in approach mode (needed for later logic)
             let isApproachMode = false;
+            // Track if hunter is in chase mode (needed for later logic)
+            let isHunterChasing = false;
 
             // 2) Behavior-specific adjustments
             if (spirit.config.behavior === 'shy') {
@@ -210,6 +212,57 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                   }
                 }
               }
+            } else if (spirit.config.behavior === 'hunter') {
+              const cursor = cursorRef.current;
+              if (cursor) {
+                const dx = cursor.xPct - newX;
+                const dy = cursor.yPct - newY;
+                const distance = Math.hypot(dx, dy);
+
+                if (distance > 0) {
+                  const normX = dx / distance;
+                  const normY = dy / distance;
+
+                  // Detection radius where the hunter starts chasing
+                  const chaseRadius = 55; // percent of container
+
+                  if (distance < chaseRadius) {
+                    isHunterChasing = true;
+
+                    // Distance-based aggression:
+                    // - far away: strong pull
+                    // - close: gentler pull to avoid orbiting too much
+                    const baseChaseStrength = 0.9;
+                    const distanceFactor = Math.min(distance / 40, 1); // 0..1
+                    const chaseStrength = baseChaseStrength * (0.5 + distanceFactor * 0.8);
+
+                    // Override velocity toward cursor (lock-on feeling)
+                    newVx = normX * chaseStrength * spirit.config.speed;
+                    newVy = normY * chaseStrength * spirit.config.speed;
+
+                    // Recompute position using chase velocity
+                    newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                    newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+
+                    // Soft lock near cursor: reduce overshoot / orbit
+                    const softLockRadius = 2.5; // in %
+                    if (distance < softLockRadius) {
+                      const damping = distance / softLockRadius; // 0..1
+                      newVx *= damping * 0.4;
+                      newVy *= damping * 0.4;
+
+                      // If extremely close, snap slightly
+                      if (distance < 0.7) {
+                        newX = cursor.xPct;
+                        newY = cursor.yPct;
+                        newVx = 0;
+                        newVy = 0;
+                      }
+                    }
+                  }
+                  // If outside chaseRadius: hunter just wanders with base movement + random jitter
+                }
+              }
             }
 
             // 3) Boundary checking with bounce
@@ -238,9 +291,10 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               newVx += (Math.random() - 0.5) * 0.5;
             }
 
-            // 4) Occasional random direction changes (skip if shy in approach mode)
+            // 4) Occasional random direction changes (skip if shy in approach mode or hunter chasing)
             const isShy = spirit.config.behavior === 'shy';
-            if (!(isShy && isApproachMode) && Math.random() < 0.005) {
+            const isHunter = spirit.config.behavior === 'hunter';
+            if (!(isShy && isApproachMode) && !(isHunter && isHunterChasing) && Math.random() < 0.005) {
               newVx += (Math.random() - 0.5) * 1;
               newVy += (Math.random() - 0.5) * 1;
             }

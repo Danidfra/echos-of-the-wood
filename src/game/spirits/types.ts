@@ -10,8 +10,8 @@ export type SpiritRarity = 'common' | 'uncommon' | 'rare' | 'mythic';
 export type SpiritBehaviorType =
   | 'simple-glow'
   | 'shy'
+  | 'hunter'
   // Future behaviors:
-  // | 'hunter'
   // | 'curious'
   // | 'rhythm'
   // | 'echo'
