@@ -47,6 +47,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
     const animationRef = useRef<number | null>(null);
     const [spirits, setSpirits] = useState<ActiveSpirit[]>([]);
     const cursorRef = useRef<{ xPct: number; yPct: number } | null>(null);
+    const lastCursorMoveTimeRef = useRef<number>(performance.now());
 
     /**
      * Create a new active spirit from a resolved config.
@@ -90,7 +91,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
       setSpirits(initialSpirits);
     }, [createActiveSpirit]);
 
-    // Track cursor position in percentage coordinates
+    // Track cursor position in percentage coordinates and stillness
     useEffect(() => {
       const container = containerRef.current;
       if (!container) return;
@@ -99,6 +100,13 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
         const rect = container.getBoundingClientRect();
         const x = ((event.clientX - rect.left) / rect.width) * 100;
         const y = ((event.clientY - rect.top) / rect.height) * 100;
+
+        const prevCursor = cursorRef.current;
+
+        // Only update lastCursorMoveTime if cursor actually moved (ignore tiny noise)
+        if (!prevCursor || Math.abs(prevCursor.xPct - x) > 0.1 || Math.abs(prevCursor.yPct - y) > 0.1) {
+          lastCursorMoveTimeRef.current = performance.now();
+        }
 
         cursorRef.current = { xPct: x, yPct: y };
       };
@@ -140,15 +148,37 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 const dy = newY - cursor.yPct;
                 const distance = Math.hypot(dx, dy);
 
-                const repelRadius = 25; // percent of container
-                if (distance > 0 && distance < repelRadius) {
-                  const repelStrength = (repelRadius - distance) / repelRadius; // 0..1
+                // Calculate how long cursor has been still
+                const cursorStillForMs = currentTime - lastCursorMoveTimeRef.current;
+
+                // Calculate patience time based on spirit's rarity/stats
+                const lifetimeSec = spirit.config.lifetimeMs / 1000;
+                const patienceSeconds = Math.max(0.7, Math.min(3.0, (lifetimeSec * 0.15) / spirit.config.speed));
+                const patienceMs = patienceSeconds * 1000;
+
+                // Determine mode: APPROACH or FLEE
+                const approachRadius = 40; // percent of container
+                const isApproachMode = cursorStillForMs >= patienceMs && distance < approachRadius;
+
+                if (distance > 0) {
                   const normX = dx / distance;
                   const normY = dy / distance;
 
-                  // push velocity away from cursor
-                  newVx += normX * repelStrength * 0.8;
-                  newVy += normY * repelStrength * 0.8;
+                  if (isApproachMode) {
+                    // APPROACH MODE: slowly move toward cursor
+                    const approachStrength = 0.15; // gentle approach
+                    newVx -= normX * approachStrength;
+                    newVy -= normY * approachStrength;
+                  } else {
+                    // FLEE MODE: repel from cursor when it's close
+                    const repelRadius = 25; // percent of container
+                    if (distance < repelRadius) {
+                      const repelStrength = (repelRadius - distance) / repelRadius; // 0..1
+                      // push velocity away from cursor
+                      newVx += normX * repelStrength * 0.8;
+                      newVy += normY * repelStrength * 0.8;
+                    }
+                  }
                 }
               }
             }
