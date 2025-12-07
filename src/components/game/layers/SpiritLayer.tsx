@@ -140,6 +140,9 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
             let newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
             let newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
 
+            // Track if shy is in approach mode (needed for later logic)
+            let isApproachMode = false;
+
             // 2) Behavior-specific adjustments
             if (spirit.config.behavior === 'shy') {
               const cursor = cursorRef.current;
@@ -158,17 +161,36 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
                 // Determine mode: APPROACH or FLEE
                 const approachRadius = 40; // percent of container
-                const isApproachMode = cursorStillForMs >= patienceMs && distance < approachRadius;
+                isApproachMode = cursorStillForMs >= patienceMs && distance < approachRadius;
 
                 if (distance > 0) {
                   const normX = dx / distance;
                   const normY = dy / distance;
 
                   if (isApproachMode) {
-                    // APPROACH MODE: slowly move toward cursor
-                    const approachStrength = 0.15; // gentle approach
-                    newVx -= normX * approachStrength;
-                    newVy -= normY * approachStrength;
+                    // APPROACH MODE: override velocity to move directly toward cursor
+                    const baseApproachStrength = 0.25;
+
+                    // Increase strength with distance so far spirits come in faster
+                    const distanceFactor = Math.min(distance / 100, 1); // 0..1
+                    const approachStrength = baseApproachStrength + distanceFactor * 0.2;
+
+                    // Override velocity instead of just nudging
+                    newVx = -normX * approachStrength;
+                    newVy = -normY * approachStrength;
+
+                    // Recalculate position with new approach velocity
+                    newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                    newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+
+                    // Snap to cursor when very close
+                    const snapRadius = 1.5; // in % of container
+                    if (distance < snapRadius) {
+                      newX = cursor.xPct;
+                      newY = cursor.yPct;
+                      newVx = 0;
+                      newVy = 0;
+                    }
                   } else {
                     // FLEE MODE: repel from cursor when it's close
                     const repelRadius = 25; // percent of container
@@ -209,8 +231,9 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               newVx += (Math.random() - 0.5) * 0.5;
             }
 
-            // 4) Occasional random direction changes
-            if (Math.random() < 0.005) {
+            // 4) Occasional random direction changes (skip if shy in approach mode)
+            const isShy = spirit.config.behavior === 'shy';
+            if (!(isShy && isApproachMode) && Math.random() < 0.005) {
               newVx += (Math.random() - 0.5) * 1;
               newVy += (Math.random() - 0.5) * 1;
             }
