@@ -1,6 +1,6 @@
 /**
  * Hunter Spirit Variants
- * 
+ *
  * Defines all variants of the hunter spirit behavior across different rarities.
  * Hunters are attracted to the cursor and will chase it.
  */
@@ -67,7 +67,6 @@ export const HUNTER_VARIANTS: SpiritVariantConfig[] = [
     hueOffset: +60,
     sizeMultiplier: 0.8,
     speedMultiplier: 1.35,
-    lifetimeMultiplier: 0.75,
     connectionsOverride: 18,
   },
 ];

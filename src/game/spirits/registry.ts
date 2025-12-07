@@ -56,9 +56,27 @@ function resolveSpiritVariant(variant: SpiritVariantConfig): ResolvedSpiritConfi
     * rarity.speedMultiplier
     * (variant.speedMultiplier ?? 1);
 
-  const lifetimeMs = base.baseLifetimeMs
-    * rarity.lifetimeMultiplier
-    * (variant.lifetimeMultiplier ?? 1);
+  // Special lifetime behavior for hunter spirits:
+  // Hunters have INVERTED lifetime scaling - higher rarity = longer lifetime
+  let lifetimeMs: number;
+  if (base.behavior === 'hunter') {
+    // Hunter-specific lifetime multipliers per rarity (inverted from global pattern)
+    const hunterLifetimeMultipliers: Record<string, number> = {
+      'common': 0.7,      // shortest
+      'uncommon': 1.1,    // a bit longer
+      'rare': 1.5,        // clearly longer
+      'mythic': 2.2,      // significantly longest
+    };
+    const hunterMultiplier = hunterLifetimeMultipliers[variant.rarity] ?? 1.0;
+    lifetimeMs = base.baseLifetimeMs
+      * hunterMultiplier
+      * (variant.lifetimeMultiplier ?? 1);
+  } else {
+    // All other behaviors use standard rarity-based lifetime
+    lifetimeMs = base.baseLifetimeMs
+      * rarity.lifetimeMultiplier
+      * (variant.lifetimeMultiplier ?? 1);
+  }
 
   const connectionsBase = base.baseConnectionsRequired
     * rarity.connectionsMultiplier;
