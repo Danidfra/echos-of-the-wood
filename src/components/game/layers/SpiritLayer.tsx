@@ -97,10 +97,11 @@ interface SpiritLayerProps {
 }
 
 /**
- * Exposed API for debug spawning.
+ * Exposed API for debug spawning and PiP integration.
  */
 export interface SpiritLayerHandle {
   spawnById: (spiritId: string) => void;
+  getSpirits: () => ActiveSpirit[];
 }
 
 let instanceCounter = 0;
@@ -311,10 +312,11 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
       setSpirits(prev => [...prev, newSpirit]);
     }, [createActiveSpirit]);
 
-    // Expose spawnById to parent via ref
+    // Expose spawnById and getSpirits to parent via ref
     useImperativeHandle(ref, () => ({
       spawnById,
-    }), [spawnById]);
+      getSpirits: () => spirits,
+    }), [spawnById, spirits]);
 
     /**
      * Handle clicks for rhythm spirit pattern matching.
@@ -1627,13 +1629,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           const isEcho = spirit.config.behavior === 'echo';
           const echoResolved = isEcho && spirit.echoState?.hasResolved;
 
-          // For orbit spirits, only clickable when stability is full
-          const isOrbit = spirit.config.behavior === 'orbit';
-          const orbitCompleted = isOrbit && spirit.orbitState?.stabilityProgress >= 1;
-
           const canClick = (!isRhythm || rhythmCompleted) &&
-                        (!isEcho || !echoResolved) &&
-                        (!isOrbit || orbitCompleted);
+                        (!isEcho || !echoResolved);
 
           return (
             <button

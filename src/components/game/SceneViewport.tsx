@@ -6,6 +6,8 @@ import { SpiritLayer, SpiritLayerHandle, SpiritClickPayload } from './layers/Spi
 import { getSpiritsByBehaviorAndRarity } from '@/game/spirits/registry';
 import { SpiritBehaviorType, SpiritRarity } from '@/game/spirits/types';
 import { RARITIES } from '@/game/spirits/rarities';
+import { useGameCanvasMirror, SpiritPosition } from '@/hooks/useGameCanvasMirror';
+import { GamePiPToggleButton } from './pip/GamePiPToggleButton';
 
 /**
  * Determines if it's nighttime based on the user's local browser time.
@@ -145,6 +147,35 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
   // Ref to SpiritLayer for spawning spirits
   const spiritLayerRef = useRef<SpiritLayerHandle>(null);
 
+  // PiP: Track spirit positions for canvas mirror
+  const [spiritPositions, setSpiritPositions] = useState<SpiritPosition[]>([]);
+
+  // PiP: Create canvas mirror and stream
+  const { stream: pipStream } = useGameCanvasMirror({
+    width: 1280,
+    height: 720,
+    isNight,
+    spirits: spiritPositions,
+    fps: 30,
+  });
+
+  // PiP: Update spirit positions periodically for canvas mirror
+  useEffect(() => {
+    const updateInterval = setInterval(() => {
+      const spirits = spiritLayerRef.current?.getSpirits() || [];
+      const positions: SpiritPosition[] = spirits.map(spirit => ({
+        x: spirit.x,
+        y: spirit.y,
+        size: spirit.config.size,
+        hue: spirit.config.hue,
+        behavior: spirit.config.behavior,
+      }));
+      setSpiritPositions(positions);
+    }, 100); // Update 10 times per second
+
+    return () => clearInterval(updateInterval);
+  }, []);
+
   // Persist grass settings to localStorage whenever they change
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -206,8 +237,11 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
           {/* Layer 3: Spirits */}
           <SpiritLayer ref={spiritLayerRef} onSpiritClick={handleSpiritClickInternal} />
 
-          {/* Debug buttons container */}
+          {/* Top-right controls container */}
           <div className="absolute top-2 right-2 z-40 flex items-center gap-2">
+            {/* PiP Toggle Button */}
+            <GamePiPToggleButton stream={pipStream} />
+
             {/* Spirits Debug Button */}
             <button
               type="button"
