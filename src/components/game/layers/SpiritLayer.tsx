@@ -570,7 +570,11 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
       <div ref={containerRef} className="absolute inset-0 z-20">
         {/* Render curiosity circles */}
         {spirits.map((spirit) => {
-          if (spirit.config.behavior === 'curious' && spirit.curiousState?.isAwakened && spirit.curiousState.curiosityCircle) {
+          if (
+            spirit.config.behavior === 'curious' &&
+            spirit.curiousState?.isAwakened &&
+            spirit.curiousState.curiosityCircle
+          ) {
             const circle = spirit.curiousState.curiosityCircle;
             return (
               <div
@@ -580,13 +584,15 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                   left: `${circle.xPct}%`,
                   top: `${circle.yPct}%`,
                   width: `${circle.radiusPct * 2}%`,
-                  height: `${circle.radiusPct * 2}%`,
+                  // REMOVER height, usar quadrado pelo aspectRatio:
+                  aspectRatio: '1 / 1',
                   transform: 'translate(-50%, -50%)',
                 }}
               >
                 <div
                   className="absolute inset-0 rounded-full animate-pulse"
                   style={{
+                    borderRadius: '50%',
                     border: `3px solid hsl(${spirit.config.hue}, 85%, 65%)`,
                     background: `radial-gradient(circle,
                       hsl(${spirit.config.hue}, 75%, 65%, 0.15) 0%,
