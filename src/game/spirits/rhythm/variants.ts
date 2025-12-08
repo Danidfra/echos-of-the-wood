@@ -1,9 +1,9 @@
 /**
  * Rhythm Spirit Variants
- * 
+ *
  * Defines all variants of the rhythm spirit behavior across different rarities.
  * Rhythm spirits emit rhythmic pulses and require players to match beat patterns.
- * 
+ *
  * Each rarity has 3 possible rhythm patterns inspired by classical music rhythms.
  */
 
@@ -12,7 +12,12 @@ import { SpiritVariantConfig } from '../types';
 /**
  * Rhythm patterns per rarity.
  * Each pattern is an array of intervals in milliseconds between beats.
- * 
+ *
+ * Difficulty is controlled by:
+ * - Pattern length (number of beats): common=short, mythic=very long
+ * - Timing tolerance: common=forgiving, mythic=strict
+ * - Tempo stays roughly the same across rarities (human-playable with mouse)
+ *
  * Example: [400, 400, 800] means:
  *   Beat 1 at t=0
  *   Beat 2 at t=400ms
@@ -21,47 +26,47 @@ import { SpiritVariantConfig } from '../types';
  */
 export const RHYTHM_PATTERNS = {
   common: [
-    // Pattern 1: Inspired by "Beethoven's 5th" - short-short-short-long
-    [300, 300, 300, 900],
-    
-    // Pattern 2: Simple steady march - even beats
-    [500, 500, 500, 500],
-    
-    // Pattern 3: Slow waltz - ONE-two-three, ONE-two-three
-    [600, 400, 400, 600, 400, 400],
+    // Pattern 1: Inspired by "Beethoven's 5th" - short-short-short-long (4 beats)
+    [500, 500, 500, 900],
+
+    // Pattern 2: Simple steady march - even beats (4 beats)
+    [600, 600, 600],
+
+    // Pattern 3: Slow waltz - ONE-two-three (3 beats)
+    [700, 500, 500],
   ],
-  
+
   uncommon: [
-    // Pattern 1: Inspired by "Ode to Joy" opening - da-da-da-DAH, da-da-da-DAH
-    [300, 300, 300, 600, 300, 300, 300, 600],
-    
-    // Pattern 2: March with syncopation
-    [400, 200, 400, 400, 200, 400],
-    
-    // Pattern 3: Moderate waltz with variation
-    [450, 350, 350, 450, 250, 450],
+    // Pattern 1: Inspired by "Ode to Joy" opening (8 beats)
+    [500, 500, 500, 700, 500, 500, 500, 700],
+
+    // Pattern 2: March with syncopation (7 beats)
+    [550, 400, 550, 550, 400, 550],
+
+    // Pattern 3: Moderate waltz with variation (7 beats)
+    [600, 500, 500, 600, 400, 600],
   ],
-  
+
   rare: [
-    // Pattern 1: Complex waltz with tempo changes
-    [350, 300, 250, 350, 300, 250, 350, 300, 250],
-    
-    // Pattern 2: Syncopated classical rhythm
-    [250, 250, 500, 250, 250, 500, 250, 250],
-    
-    // Pattern 3: Galloping rhythm (horse trot)
-    [200, 200, 400, 200, 200, 400, 200, 200, 400],
+    // Pattern 1: Complex waltz with tempo changes (10 beats)
+    [500, 450, 400, 500, 450, 400, 500, 450, 400],
+
+    // Pattern 2: Syncopated classical rhythm (11 beats)
+    [450, 450, 600, 450, 450, 600, 450, 450, 600],
+
+    // Pattern 3: Galloping rhythm (horse trot) (10 beats)
+    [400, 400, 550, 400, 400, 550, 400, 400, 550],
   ],
-  
+
   mythic: [
-    // Pattern 1: Inspired by "Flight of the Bumblebee" - rapid succession
-    [150, 150, 150, 150, 150, 150, 300, 150, 150, 150, 150, 150, 150],
-    
-    // Pattern 2: Complex syncopation with speed changes
-    [120, 120, 240, 120, 120, 180, 120, 120, 240, 120, 120],
-    
-    // Pattern 3: Virtuoso pattern - very fast with irregular spacing
-    [100, 100, 100, 200, 100, 100, 100, 150, 100, 100, 100, 200],
+    // Pattern 1: Inspired by "Flight of the Bumblebee" - rapid succession (14 beats)
+    [400, 400, 400, 400, 400, 400, 550, 400, 400, 400, 400, 400, 400],
+
+    // Pattern 2: Complex syncopation with speed changes (13 beats)
+    [350, 350, 500, 350, 350, 450, 350, 350, 500, 350, 350, 450],
+
+    // Pattern 3: Virtuoso pattern - irregular spacing (14 beats)
+    [350, 350, 350, 500, 350, 350, 350, 450, 350, 350, 350, 500, 350],
   ],
 } as const;
 
@@ -70,10 +75,10 @@ export const RHYTHM_PATTERNS = {
  * A click is considered correct if within ± this tolerance.
  */
 export const RHYTHM_TOLERANCES = {
-  common: 220,      // ±220ms - very forgiving
-  uncommon: 160,    // ±160ms - medium difficulty
-  rare: 110,        // ±110ms - strict
-  mythic: 70,       // ±70ms - very strict, requires precision
+  common: 250,      // ±250ms - very forgiving
+  uncommon: 180,    // ±180ms - medium difficulty
+  rare: 120,        // ±120ms - strict
+  mythic: 80,       // ±80ms - very strict, requires precision
 } as const;
 
 export const RHYTHM_VARIANTS: SpiritVariantConfig[] = [

@@ -163,6 +163,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
     /**
      * Handle clicks for rhythm spirit pattern matching.
+     * Uses relative timing validation: player's clicks are validated against
+     * the relative intervals in the pattern, not absolute timestamps.
      */
     const handleContainerClick = useCallback(() => {
       const clickTime = performance.now();
@@ -179,8 +181,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
             const clickTimes = [...rhythmState.clickTimes, clickTime];
             const clickIndex = clickTimes.length - 1;
 
-            // Check if we have a corresponding expected beat
-            if (clickIndex >= rhythmState.expectedBeats.length) {
+            // Check if we have a corresponding beat in the pattern
+            if (clickIndex >= rhythmState.pattern.length + 1) {
               // Too many clicks - reset attempt
               return {
                 ...spirit,
@@ -191,8 +193,26 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               };
             }
 
-            const expectedBeatTime = rhythmState.expectedBeats[clickIndex];
-            const timeDiff = Math.abs(clickTime - expectedBeatTime);
+            // For first click, just record it as the start time
+            if (clickIndex === 0) {
+              return {
+                ...spirit,
+                rhythmState: {
+                  ...rhythmState,
+                  clickTimes: clickTimes,
+                },
+              };
+            }
+
+            // For subsequent clicks, validate against relative timing
+            // Expected interval is from the pattern
+            const expectedInterval = rhythmState.pattern[clickIndex - 1];
+
+            // Actual interval from player
+            const actualInterval = clickTime - clickTimes[clickIndex - 1];
+
+            // Calculate timing difference
+            const timeDiff = Math.abs(actualInterval - expectedInterval);
 
             // Check if click is within tolerance
             if (timeDiff <= rhythmState.toleranceMs) {
@@ -200,12 +220,14 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               const newClickTimes = clickTimes;
 
               // Check if this was the last beat
-              if (newClickTimes.length === rhythmState.expectedBeats.length) {
+              if (newClickTimes.length === rhythmState.pattern.length + 1) {
                 // Pattern completed successfully!
                 console.log('[RhythmSpirit] Completed rhythm pattern:', {
                   instanceId: spirit.instanceId,
                   configId: spirit.configId,
                   rarity: spirit.config.rarity,
+                  pattern: rhythmState.pattern,
+                  playerTimings: newClickTimes.slice(1).map((t, i) => t - newClickTimes[i]),
                 });
 
                 return {
@@ -229,6 +251,13 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               };
             } else {
               // Incorrect timing - reset attempt
+              console.log('[RhythmSpirit] Incorrect timing - resetting:', {
+                expectedInterval,
+                actualInterval,
+                timeDiff,
+                toleranceMs: rhythmState.toleranceMs,
+              });
+
               return {
                 ...spirit,
                 rhythmState: {
@@ -552,15 +581,53 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                   }
                 }
 
-                // Rhythm spirits move slowly and smoothly (meditative wandering)
-                // Apply gentle damping to create smooth, flowing movement
-                newVx *= 0.95;
-                newVy *= 0.95;
+                // ===== Cursor Flee Behavior =====
+                // Rhythm spirits flee from cursor if it gets too close
+                const cursor = cursorRef.current;
+                if (cursor) {
+                  const dx = newX - cursor.xPct;
+                  const dy = newY - cursor.yPct;
+                  const distance = Math.hypot(dx, dy);
 
-                // Gentle random drift
-                if (Math.random() < 0.01) {
-                  newVx += (Math.random() - 0.5) * 0.3;
-                  newVy += (Math.random() - 0.5) * 0.3;
+                  // Safe radius: if cursor is closer than this, spirit flees
+                  const safeRadius = 20; // % of container (fixed for all rarities)
+
+                  if (distance > 0 && distance < safeRadius) {
+                    // Cursor is too close - flee away from it
+                    const normX = dx / distance;
+                    const normY = dy / distance;
+
+                    // Flee strength increases as cursor gets closer
+                    const fleeStrength = ((safeRadius - distance) / safeRadius) * 0.8;
+
+                    // Push velocity away from cursor
+                    newVx += normX * fleeStrength;
+                    newVy += normY * fleeStrength;
+
+                    // Recalculate position with flee velocity
+                    newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                    newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+                  } else {
+                    // Cursor is outside safe radius - normal meditative wandering
+                    // Apply gentle damping to create smooth, flowing movement
+                    newVx *= 0.95;
+                    newVy *= 0.95;
+
+                    // Gentle random drift
+                    if (Math.random() < 0.01) {
+                      newVx += (Math.random() - 0.5) * 0.3;
+                      newVy += (Math.random() - 0.5) * 0.3;
+                    }
+                  }
+                } else {
+                  // No cursor tracking - normal meditative wandering
+                  newVx *= 0.95;
+                  newVy *= 0.95;
+
+                  if (Math.random() < 0.01) {
+                    newVx += (Math.random() - 0.5) * 0.3;
+                    newVy += (Math.random() - 0.5) * 0.3;
+                  }
                 }
               }
             } else if (spirit.config.behavior === 'shy') {
@@ -897,16 +964,26 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           const isAwakened = isCurious && spirit.curiousState?.isAwakened;
           const curiosityProgress = spirit.curiousState?.curiosityProgress ?? 0;
 
+          // Determine if this spirit can be clicked
+          const isRhythm = spirit.config.behavior === 'rhythm';
+          const rhythmCompleted = isRhythm && spirit.rhythmState?.hasCompleted;
+          const canClick = !isRhythm || rhythmCompleted;
+
           return (
             <button
               key={spirit.instanceId}
-              onClick={() =>
-                onSpiritClick({
-                  instanceId: spirit.instanceId,
-                  configId: spirit.configId,
-                  config: spirit.config,
-                })
-              }
+              onClick={() => {
+                // Only trigger onSpiritClick if:
+                // - It's NOT a rhythm spirit, OR
+                // - It's a rhythm spirit that has completed its pattern
+                if (canClick) {
+                  onSpiritClick({
+                    instanceId: spirit.instanceId,
+                    configId: spirit.configId,
+                    config: spirit.config,
+                  });
+                }
+              }}
               className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
               style={{
                 left: `${spirit.x}%`,
