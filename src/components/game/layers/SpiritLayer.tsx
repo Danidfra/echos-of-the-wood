@@ -581,52 +581,70 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                   }
                 }
 
-                // ===== Cursor Flee Behavior =====
-                // Rhythm spirits flee from cursor if it gets too close
-                const cursor = cursorRef.current;
-                if (cursor) {
-                  const dx = newX - cursor.xPct;
-                  const dy = newY - cursor.yPct;
-                  const distance = Math.hypot(dx, dy);
+                // ===== Cursor Flee Behavior (only before completion) =====
+                // Check if rhythm has been completed
+                if (rhythmState.hasCompleted) {
+                  // ===== POST-SUCCESS BEHAVIOR =====
+                  // Pattern completed - spirit stops fleeing and enters calm idle state
+                  // Cursor can now approach freely to click and collect the spirit
 
-                  // Safe radius: if cursor is closer than this, spirit flees
-                  const safeRadius = 20; // % of container (fixed for all rarities)
+                  // Very gentle idle movement (almost stationary)
+                  newVx *= 0.85; // Stronger damping for calmer movement
+                  newVy *= 0.85;
 
-                  if (distance > 0 && distance < safeRadius) {
-                    // Cursor is too close - flee away from it
-                    const normX = dx / distance;
-                    const normY = dy / distance;
+                  // Minimal random drift (spirit is at peace)
+                  if (Math.random() < 0.005) { // Half as frequent
+                    newVx += (Math.random() - 0.5) * 0.15; // Half the strength
+                    newVy += (Math.random() - 0.5) * 0.15;
+                  }
+                } else {
+                  // ===== PRE-SUCCESS BEHAVIOR =====
+                  // Rhythm spirits flee from cursor if it gets too close
+                  const cursor = cursorRef.current;
+                  if (cursor) {
+                    const dx = newX - cursor.xPct;
+                    const dy = newY - cursor.yPct;
+                    const distance = Math.hypot(dx, dy);
 
-                    // Flee strength increases as cursor gets closer
-                    const fleeStrength = ((safeRadius - distance) / safeRadius) * 0.8;
+                    // Safe radius: if cursor is closer than this, spirit flees
+                    const safeRadius = 20; // % of container (fixed for all rarities)
 
-                    // Push velocity away from cursor
-                    newVx += normX * fleeStrength;
-                    newVy += normY * fleeStrength;
+                    if (distance > 0 && distance < safeRadius) {
+                      // Cursor is too close - flee away from it
+                      const normX = dx / distance;
+                      const normY = dy / distance;
 
-                    // Recalculate position with flee velocity
-                    newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
-                    newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+                      // Flee strength increases as cursor gets closer
+                      const fleeStrength = ((safeRadius - distance) / safeRadius) * 0.8;
+
+                      // Push velocity away from cursor
+                      newVx += normX * fleeStrength;
+                      newVy += normY * fleeStrength;
+
+                      // Recalculate position with flee velocity
+                      newX = spirit.x + newVx * speedMultiplier * deltaTime * 0.3;
+                      newY = spirit.y + newVy * speedMultiplier * deltaTime * 0.3;
+                    } else {
+                      // Cursor is outside safe radius - normal meditative wandering
+                      // Apply gentle damping to create smooth, flowing movement
+                      newVx *= 0.95;
+                      newVy *= 0.95;
+
+                      // Gentle random drift
+                      if (Math.random() < 0.01) {
+                        newVx += (Math.random() - 0.5) * 0.3;
+                        newVy += (Math.random() - 0.5) * 0.3;
+                      }
+                    }
                   } else {
-                    // Cursor is outside safe radius - normal meditative wandering
-                    // Apply gentle damping to create smooth, flowing movement
+                    // No cursor tracking - normal meditative wandering
                     newVx *= 0.95;
                     newVy *= 0.95;
 
-                    // Gentle random drift
                     if (Math.random() < 0.01) {
                       newVx += (Math.random() - 0.5) * 0.3;
                       newVy += (Math.random() - 0.5) * 0.3;
                     }
-                  }
-                } else {
-                  // No cursor tracking - normal meditative wandering
-                  newVx *= 0.95;
-                  newVy *= 0.95;
-
-                  if (Math.random() < 0.01) {
-                    newVx += (Math.random() - 0.5) * 0.3;
-                    newVy += (Math.random() - 0.5) * 0.3;
                   }
                 }
               }

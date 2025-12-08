@@ -24,21 +24,21 @@ export const RHYTHM_PATTERNS = {
     [600, 600, 600],
     [700, 500, 500],
   ],
-  
+
   uncommon: [
     // 7-8 beats, similar tempo (400-700ms intervals)
     [500, 500, 500, 700, 500, 500, 500, 700],
     [550, 400, 550, 550, 400, 550],
     [600, 500, 500, 600, 400, 600],
   ],
-  
+
   rare: [
     // 10-11 beats, similar tempo (400-600ms intervals)
     [500, 450, 400, 500, 450, 400, 500, 450, 400],
     [450, 450, 600, 450, 450, 600, 450, 450, 600],
     [400, 400, 550, 400, 400, 550, 400, 400, 550],
   ],
-  
+
   mythic: [
     // 13-14 beats, similar tempo (350-500ms intervals)
     [400, 400, 400, 400, 400, 400, 550, 400, 400, 400, 400, 400, 400],
@@ -365,7 +365,98 @@ Build: ✅ Successful
 - **Difficulty**: Very hard - very long pattern, very strict timing
 
 ### Universal Rhythm Behaviors
-- **Flee radius**: 20% of container (all rarities)
-- **Movement**: Slow, meditative wandering when cursor is far
+- **Flee radius**: 20% of container (all rarities) - only active BEFORE completion
+- **Movement**:
+  - Before completion: Slow, meditative wandering when cursor is far, flee when cursor is close
+  - After completion: Calm idle state with minimal movement, NO fleeing
 - **Click prevention**: Cannot click until pattern is completed
 - **Validation**: Relative timing (player sets the tempo with first click)
+- **Post-success state**: Spirit stops fleeing, displays victory glow, and becomes clickable
+
+---
+
+## 6. Post-Success Behavior (Updated)
+
+**Added**: After successful rhythm completion, the spirit's behavior changes completely.
+
+### Before Completion (Pre-Success)
+- Spirit plays the rhythm pattern (visual pulses)
+- Flees from cursor when it gets within 20% safe radius
+- Clicking the spirit does nothing
+- Displays attempting state indicator (dashed ring)
+
+### After Completion (Post-Success)
+- Spirit stops fleeing completely
+- Cursor can approach freely without triggering flee logic
+- Enters calm idle state with minimal movement (85% damping, half the drift)
+- Displays victory glow (bright pulsing halo)
+- Clicking the spirit NOW triggers `onSpiritClick` and counts as the connection
+
+### Implementation
+
+**File**: `src/components/game/layers/SpiritLayer.tsx`
+
+```typescript
+// Check if rhythm has been completed
+if (rhythmState.hasCompleted) {
+  // ===== POST-SUCCESS BEHAVIOR =====
+  // Pattern completed - spirit stops fleeing and enters calm idle state
+  // Cursor can now approach freely to click and collect the spirit
+
+  // Very gentle idle movement (almost stationary)
+  newVx *= 0.85; // Stronger damping for calmer movement
+  newVy *= 0.85;
+
+  // Minimal random drift (spirit is at peace)
+  if (Math.random() < 0.005) { // Half as frequent
+    newVx += (Math.random() - 0.5) * 0.15; // Half the strength
+    newVy += (Math.random() - 0.5) * 0.15;
+  }
+} else {
+  // ===== PRE-SUCCESS BEHAVIOR =====
+  // Rhythm spirits flee from cursor if it gets too close
+  // ... existing flee logic ...
+}
+```
+
+### Visual States
+
+1. **Playing Pattern**: Rhythmic pulses at beat times
+2. **Attempting**: Subtle dashed ring indicator
+3. **Completed (Victory Glow)**: Bright pulsing halo (4x spirit size)
+   - Only visible when `rhythmState.hasCompleted === true`
+   - Indicates the spirit is now clickable
+   - Tied directly to the `hasCompleted` flag
+
+### Click Validation
+
+```typescript
+// Determine if this spirit can be clicked
+const isRhythm = spirit.config.behavior === 'rhythm';
+const rhythmCompleted = isRhythm && spirit.rhythmState?.hasCompleted;
+const canClick = !isRhythm || rhythmCompleted;
+
+// onClick only fires when canClick is true
+if (canClick) {
+  onSpiritClick({
+    instanceId: spirit.instanceId,
+    configId: spirit.configId,
+    config: spirit.config,
+  });
+}
+```
+
+### Player Experience Flow
+
+1. **Encounter**: Rhythm spirit appears, starts playing its pattern
+2. **Learn**: Watch the visual pulses to learn the rhythm
+3. **Attempt**: Click in the container to match the rhythm
+   - Spirit flees if cursor gets too close (can't hover over it)
+   - Incorrect timing resets the attempt
+4. **Success**: Match all beats correctly
+   - Spirit stops moving frantically
+   - Victory glow appears (bright pulsing halo)
+   - Spirit stops fleeing from cursor
+5. **Collect**: Cursor can now approach and click the glowing spirit
+   - Click triggers `onSpiritClick`
+   - Connection is established
