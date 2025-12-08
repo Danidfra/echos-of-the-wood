@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { ResolvedSpiritConfig } from '@/game/spirits/types';
+import { ResolvedSpiritConfig, SpiritRarity } from '@/game/spirits/types';
 import { getSpiritById, getRandomSpiritsForInitialSpawn } from '@/game/spirits/registry';
 
 /**
@@ -30,6 +30,10 @@ interface ActiveSpirit {
     lastCursorX: number;        // for tracking movement delta
     lastCursorY: number;
     hasReachedCircle: boolean;  // true when spirit enters the circle
+
+    // Hold-time mechanic fields
+    insideCircleSince?: number | null;  // timestamp from performance.now()
+    hasCompletedCircle?: boolean;       // when hold-time is completed
   };
 }
 
@@ -285,6 +289,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                     spirit.curiousState.curiosityCircle = undefined;
                     spirit.curiousState.curiosityProgress = 0;
                     spirit.curiousState.hasReachedCircle = false;
+                    spirit.curiousState.insideCircleSince = null;
+                    spirit.curiousState.hasCompletedCircle = false;
                   } else if (!spirit.curiousState.hasReachedCircle) {
                     // ===== Circle Entry Detection =====
                     if (circleDistance <= circle.radiusPct) {
@@ -333,6 +339,45 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                       // Apply awakened speed damping
                       newVx *= awakenedSpeedDamping;
                       newVy *= awakenedSpeedDamping;
+                    }
+                  }
+
+                  // ===== Hold-Time Mechanic (after hasReachedCircle is true) =====
+                  if (spirit.curiousState.hasReachedCircle && !spirit.curiousState.hasCompletedCircle) {
+                    const isInsideCircle = circleDistance <= circle.radiusPct;
+
+                    if (isInsideCircle) {
+                      // Spirit is inside the circle
+                      if (spirit.curiousState.insideCircleSince == null) {
+                        // Just entered - start the timer
+                        spirit.curiousState.insideCircleSince = currentTime;
+                      }
+
+                      // Calculate how long the spirit has been inside
+                      const insideForMs = currentTime - (spirit.curiousState.insideCircleSince ?? currentTime);
+
+                      // Define base hold time and rarity multiplier
+                      const baseHoldMs = 2000; // 2 seconds base
+                      const rarityHoldMultiplier: Record<SpiritRarity, number> = {
+                        common: 1.6,
+                        uncommon: 1.3,
+                        rare: 1.0,
+                        mythic: 0.7,
+                      };
+                      const requiredHoldMs = baseHoldMs * (rarityHoldMultiplier[spirit.config.rarity] ?? 1.0);
+
+                      // Check if hold time is complete
+                      if (insideForMs >= requiredHoldMs) {
+                        spirit.curiousState.hasCompletedCircle = true;
+                        console.log('[CuriousSpirit] Completed circle hold:', {
+                          instanceId: spirit.instanceId,
+                          configId: spirit.configId,
+                          rarity: spirit.config.rarity,
+                        });
+                      }
+                    } else {
+                      // Spirit left the circle before completing - reset timer
+                      spirit.curiousState.insideCircleSince = null;
                     }
                   }
                 }
@@ -542,14 +587,15 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 <div
                   className="absolute inset-0 rounded-full animate-pulse"
                   style={{
-                    border: `2px dashed hsl(${spirit.config.hue}, 70%, 60%)`,
+                    border: `3px solid hsl(${spirit.config.hue}, 85%, 65%)`,
                     background: `radial-gradient(circle,
-                      hsl(${spirit.config.hue}, 70%, 60%, 0.1) 0%,
-                      hsl(${spirit.config.hue}, 60%, 50%, 0.05) 50%,
-                      transparent 100%)`,
+                      hsl(${spirit.config.hue}, 75%, 65%, 0.15) 0%,
+                      hsl(${spirit.config.hue}, 70%, 60%, 0.08) 40%,
+                      transparent 70%)`,
                     boxShadow: `
-                      0 0 20px hsl(${spirit.config.hue}, 70%, 60%, 0.3),
-                      inset 0 0 20px hsl(${spirit.config.hue}, 70%, 60%, 0.2)
+                      0 0 30px hsl(${spirit.config.hue}, 85%, 65%, 0.6),
+                      0 0 50px hsl(${spirit.config.hue}, 80%, 60%, 0.4),
+                      inset 0 0 25px hsl(${spirit.config.hue}, 85%, 65%, 0.3)
                     `,
                   }}
                 />
