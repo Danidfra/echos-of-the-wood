@@ -15,6 +15,8 @@ import { HUNTER_BASE } from './hunter/base';
 import { HUNTER_VARIANTS } from './hunter/variants';
 import { CURIOUS_BASE } from './curious/base';
 import { CURIOUS_VARIANTS } from './curious/variants';
+import { RHYTHM_BASE } from './rhythm/base';
+import { RHYTHM_VARIANTS } from './rhythm/variants';
 
 // ============================================================================
 // BASE CONFIGS REGISTRY
@@ -25,6 +27,7 @@ const BASES: Record<string, SpiritBaseConfig> = {
   'shy': SHY_BASE,
   'hunter': HUNTER_BASE,
   'curious': CURIOUS_BASE,
+  'rhythm': RHYTHM_BASE,
   // Future behaviors:
   // etc.
 };
@@ -58,8 +61,8 @@ function resolveSpiritVariant(variant: SpiritVariantConfig): ResolvedSpiritConfi
     * rarity.speedMultiplier
     * (variant.speedMultiplier ?? 1);
 
-  // Special lifetime behavior for hunter spirits:
-  // Hunters have INVERTED lifetime scaling - higher rarity = longer lifetime
+  // Special lifetime behavior for hunter and rhythm spirits:
+  // Both have INVERTED lifetime scaling - higher rarity = longer lifetime
   let lifetimeMs: number;
   if (base.behavior === 'hunter') {
     // Hunter-specific lifetime multipliers per rarity (inverted from global pattern)
@@ -72,6 +75,18 @@ function resolveSpiritVariant(variant: SpiritVariantConfig): ResolvedSpiritConfi
     const hunterMultiplier = hunterLifetimeMultipliers[variant.rarity] ?? 1.0;
     lifetimeMs = base.baseLifetimeMs
       * hunterMultiplier
+      * (variant.lifetimeMultiplier ?? 1);
+  } else if (base.behavior === 'rhythm') {
+    // Rhythm-specific lifetime multipliers per rarity (inverted - harder patterns need more time)
+    const rhythmLifetimeMultipliers: Record<string, number> = {
+      'common': 1.0,      // base time
+      'uncommon': 1.2,    // 20% more time
+      'rare': 1.45,       // 45% more time
+      'mythic': 1.8,      // 80% more time - complex patterns need patience
+    };
+    const rhythmMultiplier = rhythmLifetimeMultipliers[variant.rarity] ?? 1.0;
+    lifetimeMs = base.baseLifetimeMs
+      * rhythmMultiplier
       * (variant.lifetimeMultiplier ?? 1);
   } else {
     // All other behaviors use standard rarity-based lifetime
@@ -114,6 +129,7 @@ export const ALL_RESOLVED_SPIRITS: ResolvedSpiritConfig[] = [
   ...SHY_VARIANTS.map(resolveSpiritVariant),
   ...HUNTER_VARIANTS.map(resolveSpiritVariant),
   ...CURIOUS_VARIANTS.map(resolveSpiritVariant),
+  ...RHYTHM_VARIANTS.map(resolveSpiritVariant),
   // Future behaviors will be added here:
   // etc.
 ];

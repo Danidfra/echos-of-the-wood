@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { ResolvedSpiritConfig, SpiritRarity } from '@/game/spirits/types';
 import { getSpiritById, getRandomSpiritsForInitialSpawn } from '@/game/spirits/registry';
+import { RHYTHM_PATTERNS, RHYTHM_TOLERANCES } from '@/game/spirits/rhythm/variants';
 
 /**
  * Active spirit instance at runtime.
@@ -34,6 +35,21 @@ interface ActiveSpirit {
     // Hold-time mechanic fields
     insideCircleSince?: number | null;  // timestamp from performance.now()
     hasCompletedCircle?: boolean;       // when hold-time is completed
+  };
+
+  // Rhythm-specific state
+  rhythmState?: {
+    pattern: number[];           // intervals in ms between beats
+    patternStartAt: number;      // when sequence playback begins
+    clickTimes: number[];        // timestamps of player's clicks
+    expectedBeats: number[];     // absolute times: patternStartAt + cumulative intervals
+    toleranceMs: number;         // based on rarity
+    isPlayingPattern: boolean;   // showing the rhythm pulses
+    isAttempting: boolean;       // user currently attempting to match
+    hasCompleted: boolean;       // player completed the sequence
+    currentBeatIndex: number;    // which beat is currently pulsing (for visual)
+    lastBeatTime: number;        // last time a beat was shown
+    playbackComplete: boolean;   // pattern playback finished
   };
 }
 
@@ -74,7 +90,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
      * Create a new active spirit from a resolved config.
      */
     const createActiveSpirit = useCallback((config: ResolvedSpiritConfig): ActiveSpirit => {
-      return {
+      const baseSpirit = {
         instanceId: `spirit-instance-${++instanceCounter}`,
         configId: config.id,
         config,
@@ -84,6 +100,46 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
         vy: (Math.random() - 0.5) * 2,
         expiresAt: performance.now() + config.lifetimeMs,
       };
+
+      // Initialize rhythm state for rhythm spirits
+      if (config.behavior === 'rhythm') {
+        // Select random pattern for this rarity
+        const patterns = RHYTHM_PATTERNS[config.rarity];
+        const selectedPattern = [...patterns[Math.floor(Math.random() * patterns.length)]];
+
+        // Get tolerance for this rarity
+        const toleranceMs = RHYTHM_TOLERANCES[config.rarity];
+
+        // Calculate absolute beat times
+        const patternStartAt = performance.now() + 1500; // 1.5s delay before starting
+        const expectedBeats: number[] = [];
+        let cumulativeTime = 0;
+
+        expectedBeats.push(patternStartAt); // First beat at start
+        for (const interval of selectedPattern) {
+          cumulativeTime += interval;
+          expectedBeats.push(patternStartAt + cumulativeTime);
+        }
+
+        return {
+          ...baseSpirit,
+          rhythmState: {
+            pattern: selectedPattern,
+            patternStartAt,
+            clickTimes: [],
+            expectedBeats,
+            toleranceMs,
+            isPlayingPattern: true,
+            isAttempting: false,
+            hasCompleted: false,
+            currentBeatIndex: 0,
+            lastBeatTime: 0,
+            playbackComplete: false,
+          },
+        };
+      }
+
+      return baseSpirit;
     }, []);
 
     /**
@@ -104,6 +160,89 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
     useImperativeHandle(ref, () => ({
       spawnById,
     }), [spawnById]);
+
+    /**
+     * Handle clicks for rhythm spirit pattern matching.
+     */
+    const handleContainerClick = useCallback(() => {
+      const clickTime = performance.now();
+
+      setSpirits(prevSpirits => {
+        return prevSpirits.map(spirit => {
+          // Only process rhythm spirits that are in attempting phase
+          if (
+            spirit.config.behavior === 'rhythm' &&
+            spirit.rhythmState?.isAttempting &&
+            !spirit.rhythmState.hasCompleted
+          ) {
+            const rhythmState = spirit.rhythmState;
+            const clickTimes = [...rhythmState.clickTimes, clickTime];
+            const clickIndex = clickTimes.length - 1;
+
+            // Check if we have a corresponding expected beat
+            if (clickIndex >= rhythmState.expectedBeats.length) {
+              // Too many clicks - reset attempt
+              return {
+                ...spirit,
+                rhythmState: {
+                  ...rhythmState,
+                  clickTimes: [],
+                },
+              };
+            }
+
+            const expectedBeatTime = rhythmState.expectedBeats[clickIndex];
+            const timeDiff = Math.abs(clickTime - expectedBeatTime);
+
+            // Check if click is within tolerance
+            if (timeDiff <= rhythmState.toleranceMs) {
+              // Correct click!
+              const newClickTimes = clickTimes;
+
+              // Check if this was the last beat
+              if (newClickTimes.length === rhythmState.expectedBeats.length) {
+                // Pattern completed successfully!
+                console.log('[RhythmSpirit] Completed rhythm pattern:', {
+                  instanceId: spirit.instanceId,
+                  configId: spirit.configId,
+                  rarity: spirit.config.rarity,
+                });
+
+                return {
+                  ...spirit,
+                  rhythmState: {
+                    ...rhythmState,
+                    clickTimes: newClickTimes,
+                    hasCompleted: true,
+                    isAttempting: false,
+                  },
+                };
+              }
+
+              // Continue to next beat
+              return {
+                ...spirit,
+                rhythmState: {
+                  ...rhythmState,
+                  clickTimes: newClickTimes,
+                },
+              };
+            } else {
+              // Incorrect timing - reset attempt
+              return {
+                ...spirit,
+                rhythmState: {
+                  ...rhythmState,
+                  clickTimes: [],
+                },
+              };
+            }
+          }
+
+          return spirit;
+        });
+      });
+    }, []);
 
     // Initialize with random spirits on mount
     useEffect(() => {
@@ -386,6 +525,44 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 spirit.curiousState.lastCursorX = cursor.xPct;
                 spirit.curiousState.lastCursorY = cursor.yPct;
               }
+            } else if (spirit.config.behavior === 'rhythm') {
+              // ===== RHYTHM SPIRIT BEHAVIOR =====
+              if (!spirit.rhythmState) {
+                // Initialize if missing (shouldn't happen, but defensive)
+                console.warn('Rhythm spirit missing rhythmState');
+              } else {
+                const rhythmState = spirit.rhythmState;
+
+                // ===== Pattern Playback Phase =====
+                if (rhythmState.isPlayingPattern && !rhythmState.playbackComplete) {
+                  // Check if we should show the next beat
+                  if (rhythmState.currentBeatIndex < rhythmState.expectedBeats.length) {
+                    const nextBeatTime = rhythmState.expectedBeats[rhythmState.currentBeatIndex];
+
+                    if (currentTime >= nextBeatTime) {
+                      // Beat should pulse now
+                      rhythmState.lastBeatTime = currentTime;
+                      rhythmState.currentBeatIndex++;
+                    }
+                  } else {
+                    // All beats have been shown
+                    rhythmState.playbackComplete = true;
+                    rhythmState.isPlayingPattern = false;
+                    rhythmState.isAttempting = true;
+                  }
+                }
+
+                // Rhythm spirits move slowly and smoothly (meditative wandering)
+                // Apply gentle damping to create smooth, flowing movement
+                newVx *= 0.95;
+                newVy *= 0.95;
+
+                // Gentle random drift
+                if (Math.random() < 0.01) {
+                  newVx += (Math.random() - 0.5) * 0.3;
+                  newVy += (Math.random() - 0.5) * 0.3;
+                }
+              }
             } else if (spirit.config.behavior === 'shy') {
               const cursor = cursorRef.current;
               if (cursor) {
@@ -567,7 +744,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
     }, []);
 
     return (
-      <div ref={containerRef} className="absolute inset-0 z-20">
+      <div ref={containerRef} className="absolute inset-0 z-20" onClick={handleContainerClick}>
         {/* Render curiosity circles */}
         {spirits.map((spirit) => {
           if (
@@ -605,6 +782,109 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                     `,
                   }}
                 />
+              </div>
+            );
+          }
+          return null;
+        })}
+
+        {/* Render rhythm spirit halos */}
+        {spirits.map((spirit) => {
+          if (spirit.config.behavior === 'rhythm' && spirit.rhythmState) {
+            const rhythmState = spirit.rhythmState;
+
+            // Calculate pulse intensity based on current beat
+            let pulseIntensity = 0;
+            const timeSinceLastBeat = performance.now() - rhythmState.lastBeatTime;
+            const pulseDuration = 300; // ms for pulse animation
+
+            if (rhythmState.isPlayingPattern && timeSinceLastBeat < pulseDuration) {
+              // Create a pulse effect that fades out
+              pulseIntensity = 1 - (timeSinceLastBeat / pulseDuration);
+            }
+
+            // Calculate halo size based on rarity (mythic = bigger pulse)
+            const rarityPulseMultiplier: Record<SpiritRarity, number> = {
+              common: 1.0,
+              uncommon: 1.15,
+              rare: 1.3,
+              mythic: 1.5,
+            };
+            const basePulseSize = spirit.config.size * 3;
+            const pulseSize = basePulseSize * (1 + pulseIntensity * 0.5) * rarityPulseMultiplier[spirit.config.rarity];
+
+            // Different visual states
+            const isCompleted = rhythmState.hasCompleted;
+            const isAttempting = rhythmState.isAttempting;
+
+            return (
+              <div
+                key={`rhythm-halo-${spirit.instanceId}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${spirit.x}%`,
+                  top: `${spirit.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                {/* Rhythmic pulse halo */}
+                <div
+                  className="absolute rounded-full transition-all duration-300"
+                  style={{
+                    width: pulseSize,
+                    height: pulseSize,
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: `radial-gradient(circle,
+                      hsl(${spirit.config.hue}, 80%, 70%, ${0.3 * pulseIntensity}) 0%,
+                      hsl(${spirit.config.hue}, 75%, 65%, ${0.2 * pulseIntensity}) 30%,
+                      hsl(${spirit.config.hue}, 70%, 60%, ${0.1 * pulseIntensity}) 60%,
+                      transparent 100%)`,
+                    boxShadow: pulseIntensity > 0
+                      ? `0 0 ${pulseSize * 0.4}px hsl(${spirit.config.hue}, 85%, 70%, ${0.6 * pulseIntensity}),
+                         0 0 ${pulseSize * 0.6}px hsl(${spirit.config.hue}, 80%, 65%, ${0.4 * pulseIntensity})`
+                      : 'none',
+                  }}
+                />
+
+                {/* Attempting state indicator - subtle ring */}
+                {isAttempting && !isCompleted && (
+                  <div
+                    className="absolute rounded-full animate-pulse"
+                    style={{
+                      width: spirit.config.size * 2.5,
+                      height: spirit.config.size * 2.5,
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      border: `2px dashed hsl(${spirit.config.hue}, 70%, 60%, 0.5)`,
+                    }}
+                  />
+                )}
+
+                {/* Completed state - victory glow */}
+                {isCompleted && (
+                  <div
+                    className="absolute rounded-full animate-pulse"
+                    style={{
+                      width: spirit.config.size * 4,
+                      height: spirit.config.size * 4,
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      background: `radial-gradient(circle,
+                        hsl(${spirit.config.hue}, 90%, 75%, 0.4) 0%,
+                        hsl(${spirit.config.hue}, 85%, 70%, 0.2) 50%,
+                        transparent 100%)`,
+                      boxShadow: `
+                        0 0 40px hsl(${spirit.config.hue}, 90%, 75%, 0.8),
+                        0 0 60px hsl(${spirit.config.hue}, 85%, 70%, 0.6),
+                        inset 0 0 30px hsl(${spirit.config.hue}, 90%, 75%, 0.4)
+                      `,
+                    }}
+                  />
+                )}
               </div>
             );
           }
