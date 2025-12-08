@@ -50,6 +50,7 @@ interface ActiveSpirit {
     currentBeatIndex: number;    // which beat is currently pulsing (for visual)
     lastBeatTime: number;        // last time a beat was shown
     playbackComplete: boolean;   // pattern playback finished
+    errorFlashUntil?: number;    // timestamp when error flash animation ends
   };
 }
 
@@ -171,11 +172,12 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
       setSpirits(prevSpirits => {
         return prevSpirits.map(spirit => {
-          // Only process rhythm spirits that are in attempting phase
+          // Only process rhythm spirits that are in attempting phase and NOT showing error flash
           if (
             spirit.config.behavior === 'rhythm' &&
             spirit.rhythmState?.isAttempting &&
-            !spirit.rhythmState.hasCompleted
+            !spirit.rhythmState.hasCompleted &&
+            !spirit.rhythmState.errorFlashUntil // Block clicks during error flash
           ) {
             const rhythmState = spirit.rhythmState;
             const clickTimes = [...rhythmState.clickTimes, clickTime];
@@ -250,8 +252,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 },
               };
             } else {
-              // Incorrect timing - reset attempt
-              console.log('[RhythmSpirit] Incorrect timing - resetting:', {
+              // Incorrect timing - trigger error flash and prepare for replay
+              console.log('[RhythmSpirit] Incorrect timing - triggering error flash:', {
                 expectedInterval,
                 actualInterval,
                 timeDiff,
@@ -263,6 +265,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 rhythmState: {
                   ...rhythmState,
                   clickTimes: [],
+                  errorFlashUntil: performance.now() + 300, // Flash for 300ms
+                  isAttempting: false, // Block further clicks during flash
                 },
               };
             }
@@ -561,6 +565,34 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 console.warn('Rhythm spirit missing rhythmState');
               } else {
                 const rhythmState = spirit.rhythmState;
+
+                // ===== Error Flash & Pattern Replay =====
+                if (rhythmState.errorFlashUntil && currentTime >= rhythmState.errorFlashUntil) {
+                  // Flash ended - reset and replay pattern
+                  const newPatternStartAt = currentTime + 500; // 500ms delay before replay
+                  const expectedBeats: number[] = [];
+                  let cumulativeTime = 0;
+
+                  expectedBeats.push(newPatternStartAt);
+                  for (const interval of rhythmState.pattern) {
+                    cumulativeTime += interval;
+                    expectedBeats.push(newPatternStartAt + cumulativeTime);
+                  }
+
+                  // Reset all state for pattern replay
+                  spirit.rhythmState = {
+                    ...rhythmState,
+                    errorFlashUntil: undefined,
+                    clickTimes: [],
+                    isAttempting: false,
+                    isPlayingPattern: true,
+                    playbackComplete: false,
+                    currentBeatIndex: 0,
+                    lastBeatTime: 0,
+                    patternStartAt: newPatternStartAt,
+                    expectedBeats,
+                  };
+                }
 
                 // ===== Pattern Playback Phase =====
                 if (rhythmState.isPlayingPattern && !rhythmState.playbackComplete) {
@@ -865,6 +897,50 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                       0 0 50px hsl(${spirit.config.hue}, 80%, 60%, 0.4),
                       inset 0 0 25px hsl(${spirit.config.hue}, 85%, 65%, 0.3)
                     `,
+                  }}
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
+
+        {/* Render rhythm error flash */}
+        {spirits.map((spirit) => {
+          if (
+            spirit.config.behavior === 'rhythm' &&
+            spirit.rhythmState?.errorFlashUntil &&
+            performance.now() < spirit.rhythmState.errorFlashUntil
+          ) {
+            return (
+              <div
+                key={`error-flash-${spirit.instanceId}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${spirit.x}%`,
+                  top: `${spirit.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                {/* Red error halo */}
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: spirit.config.size * 3.5,
+                    height: spirit.config.size * 3.5,
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: `radial-gradient(circle,
+                      rgba(255, 60, 60, 0.4) 0%,
+                      rgba(255, 20, 20, 0.2) 50%,
+                      transparent 100%)`,
+                    boxShadow: `
+                      0 0 12px rgba(255, 60, 60, 0.9),
+                      0 0 24px rgba(255, 20, 20, 0.6),
+                      0 0 36px rgba(255, 10, 10, 0.4)
+                    `,
+                    animation: 'fadeOut 300ms ease-out',
                   }}
                 />
               </div>
