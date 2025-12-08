@@ -63,7 +63,7 @@ export const ECHO_VARIANTS: SpiritVariantConfig[] = [
     rarity: 'rare',
     hueOffset: +25,           // More vibrant magenta
     sizeMultiplier: 0.92,
-    speedMultiplier: 1.15,
+    speedMultiplier: 0.86,     // Reduced by ~25% from 1.15
   },
   {
     id: 'echo-rare-02',
@@ -72,7 +72,7 @@ export const ECHO_VARIANTS: SpiritVariantConfig[] = [
     rarity: 'rare',
     hueOffset: +35,
     sizeMultiplier: 0.95,
-    speedMultiplier: 1.1,
+    speedMultiplier: 0.83,     // Reduced by ~25% from 1.1
   },
 
   // ============================================================================
@@ -85,7 +85,7 @@ export const ECHO_VARIANTS: SpiritVariantConfig[] = [
     rarity: 'mythic',
     hueOffset: +60,           // Bright pink/magenta
     sizeMultiplier: 0.85,
-    speedMultiplier: 1.3,
+    speedMultiplier: 0.85,     // Reduced by ~35% from 1.3
     lifetimeMultiplier: 0.8,
     connectionsOverride: 15,
   },
@@ -96,7 +96,7 @@ export const ECHO_VARIANTS: SpiritVariantConfig[] = [
     rarity: 'mythic',
     hueOffset: +70,
     sizeMultiplier: 0.88,
-    speedMultiplier: 1.25,
+    speedMultiplier: 0.81,     // Reduced by ~35% from 1.25
     lifetimeMultiplier: 0.85,
     connectionsOverride: 14,
   },
