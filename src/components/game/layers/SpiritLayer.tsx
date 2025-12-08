@@ -65,6 +65,21 @@ interface ActiveSpirit {
     }>;
     hasResolved: boolean;       // true when real echo has been clicked
   };
+
+  // Orbit-specific state
+  orbitState?: {
+    angle: number;              // current orbit angle in radians
+    radius: number;             // current orbit radius in %
+    baseRadius: number;         // starting radius in %
+    minRadius: number;          // radius at full stability
+    maxRadius: number;          // maximum allowed radius before it feels too far
+    isGreenPhase: boolean;      // true when player can move
+    phaseEndsAt: number;        // timestamp when current phase ends
+    stabilityProgress: number;   // 0..1, progress toward making spirit clickable
+    // For movement detection:
+    lastCursorX: number;
+    lastCursorY: number;
+  };
 }
 
 /**
@@ -210,6 +225,71 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           echoState: {
             echoes,
             hasResolved: false,
+          },
+        };
+      }
+
+      // Initialize orbit state for orbit spirits
+      if (config.behavior === 'orbit') {
+        // Determine orbit parameters based on rarity
+        const orbitParamsByRarity: Record<SpiritRarity, {
+          baseRadius: number;
+          minRadius: number;
+          maxRadius: number;
+          greenPhaseDuration: number;
+          redPhaseDuration: number;
+          stabilityGrowthRate: number;
+        }> = {
+          common: {
+            baseRadius: 25,        // 25% of container
+            minRadius: 15,         // 15% when fully stable
+            maxRadius: 35,         // 35% maximum before drift
+            greenPhaseDuration: 1800,  // 1.8 seconds green
+            redPhaseDuration: 1200,     // 1.2 seconds red
+            stabilityGrowthRate: 0.8,   // Slower stability growth
+          },
+          uncommon: {
+            baseRadius: 28,
+            minRadius: 16,
+            maxRadius: 38,
+            greenPhaseDuration: 1600,
+            redPhaseDuration: 1000,
+            stabilityGrowthRate: 0.9,
+          },
+          rare: {
+            baseRadius: 30,
+            minRadius: 18,
+            maxRadius: 42,
+            greenPhaseDuration: 1400,
+            redPhaseDuration: 900,
+            stabilityGrowthRate: 1.0,
+          },
+          mythic: {
+            baseRadius: 32,
+            minRadius: 20,
+            maxRadius: 45,
+            greenPhaseDuration: 1200,
+            redPhaseDuration: 800,
+            stabilityGrowthRate: 1.1,
+          },
+        };
+
+        const params = orbitParamsByRarity[config.rarity];
+        const currentTime = performance.now();
+
+        return {
+          ...baseSpirit,
+          orbitState: {
+            angle: Math.random() * Math.PI * 2,  // Random starting angle
+            radius: params.baseRadius,
+            baseRadius: params.baseRadius,
+            minRadius: params.minRadius,
+            maxRadius: params.maxRadius,
+            isGreenPhase: true,  // Start in green phase
+            phaseEndsAt: currentTime + params.greenPhaseDuration,
+            stabilityProgress: 0,
+            lastCursorX: cursorRef.current?.xPct ?? 50,
+            lastCursorY: cursorRef.current?.yPct ?? 50,
           },
         };
       }
@@ -641,6 +721,116 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               // Normal wandering behavior is already applied above in step 1
               // No additional behavior modifications needed for echo spirits
 
+            } else if (spirit.config.behavior === 'orbit') {
+              // ===== ORBIT SPIRIT BEHAVIOR =====
+              const cursor = cursorRef.current;
+
+              if (!cursor) {
+                // No cursor - spirit idles in place with light wandering
+                newVx *= 0.95;
+                newVy *= 0.95;
+                if (Math.random() < 0.005) {
+                  newVx += (Math.random() - 0.5) * 0.3;
+                  newVy += (Math.random() - 0.5) * 0.3;
+                }
+              } else {
+                // Cursor exists - orbit around cursor
+                if (!spirit.orbitState) return spirit; // Defensive check
+
+                const orbitState = spirit.orbitState;
+                const currentTime = performance.now();
+
+                // ===== PHASE MANAGEMENT =====
+                if (currentTime >= orbitState.phaseEndsAt) {
+                  // Switch to next phase
+                  orbitState.isGreenPhase = !orbitState.isGreenPhase;
+                  const phaseDuration = orbitState.isGreenPhase ?
+                    1800 : 1200; // Green: 1.8s, Red: 1.2s (adjust per rarity later)
+                  orbitState.phaseEndsAt = currentTime + phaseDuration;
+                }
+
+                // ===== MOVEMENT DETECTION =====
+                const dx = cursor.xPct - orbitState.lastCursorX;
+                const dy = cursor.yPct - orbitState.lastCursorY;
+                const movement = Math.hypot(dx, dy);
+
+                // Update cursor tracking for next frame
+                orbitState.lastCursorX = cursor.xPct;
+                orbitState.lastCursorY = cursor.yPct;
+
+                // ===== ORBIT UPDATE =====
+                // Update angle based on speed and rarity
+                const orbitAngularSpeed = spirit.config.speed * 0.8; // Base orbit speed
+                orbitState.angle += (orbitAngularSpeed * deltaTime) / 100;
+
+                // ===== PHASE-SPECIFIC BEHAVIOR =====
+                if (orbitState.isGreenPhase) {
+                  // GREEN LIGHT PHASE - player can move
+                  const gentleMovementMax = 2.5; // Gentle movement threshold
+
+                  if (movement <= gentleMovementMax) {
+                    // Gentle movement - reward player with tighter orbit
+                    const tightenAmount = 0.02; // How much to tighten per frame
+                    orbitState.radius = Math.max(orbitState.minRadius, orbitState.radius - tightenAmount);
+
+                    // Increase stability progress more when orbit is tighter
+                    const radiusProximity = 1 - ((orbitState.radius - orbitState.minRadius) / (orbitState.baseRadius - orbitState.minRadius));
+                    const stabilityGrowth = 0.006 * radiusProximity; // Faster growth when tighter
+                    orbitState.stabilityProgress = Math.min(1, orbitState.stabilityProgress + stabilityGrowth);
+                  } else {
+                    // Too much movement - slight penalty
+                    orbitState.radius = Math.min(orbitState.maxRadius, orbitState.radius + 0.05);
+                    orbitState.stabilityProgress = Math.max(0, orbitState.stabilityProgress - 0.01);
+                  }
+                } else {
+                  // RED LIGHT PHASE - player should stay still
+                  const stillMovementMax = 0.8; // Very small movement threshold
+
+                  if (movement > stillMovementMax) {
+                    // Player moved too much - expand orbit as penalty
+                    const expandAmount = movement * 0.15;
+                    orbitState.radius = Math.min(orbitState.maxRadius, orbitState.radius + expandAmount);
+                    orbitState.stabilityProgress = Math.max(0, orbitState.stabilityProgress - 0.02);
+                  } else {
+                    // Player stayed still - maintain or slightly tighten
+                    if (orbitState.radius > orbitState.minRadius) {
+                      orbitState.radius -= 0.01; // Gradual tightening
+                    }
+                    // Small stability increase for good behavior
+                    orbitState.stabilityProgress = Math.min(1, orbitState.stabilityProgress + 0.002);
+                  }
+                }
+
+                // ===== POSITION UPDATE =====
+                // Calculate new position based on orbit around cursor
+                newX = cursor.xPct + Math.cos(orbitState.angle) * orbitState.radius;
+                newY = cursor.yPct + Math.sin(orbitState.angle) * orbitState.radius;
+
+                // Clamp to bounds (like other spirits)
+                const margin = 5;
+                const maxX = 95;
+                const maxY = 95;
+
+                if (newX < margin) {
+                  newX = margin;
+                  newVx = Math.abs(newVx) * (0.8 + Math.random() * 0.4);
+                  newVy += (Math.random() - 0.5) * 0.5;
+                } else if (newX > maxX) {
+                  newX = maxX;
+                  newVx = -Math.abs(newVx) * (0.8 + Math.random() * 0.4);
+                  newVy += (Math.random() - 0.5) * 0.5;
+                }
+
+                if (newY < margin) {
+                  newY = margin;
+                  newVy = Math.abs(newVy) * (0.8 + Math.random() * 0.4);
+                  newVx += (Math.random() - 0.5) * 0.5;
+                } else if (newY > maxY) {
+                  newY = maxY;
+                  newVy = -Math.abs(newVy) * (0.8 + Math.random() * 0.4);
+                  newVx += (Math.random() - 0.5) * 0.5;
+                }
+              }
             } else if (spirit.config.behavior === 'rhythm') {
               // ===== RHYTHM SPIRIT BEHAVIOR =====
               if (!spirit.rhythmState) {
@@ -984,6 +1174,12 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               };
             }
 
+            // Update orbit state if this is an orbit spirit
+            let updatedOrbitState = spirit.orbitState;
+            if (spirit.config.behavior === 'orbit' && spirit.orbitState) {
+              updatedOrbitState = spirit.orbitState; // State is updated in-place above
+            }
+
             return {
               ...spirit,
               x: newX,
@@ -991,6 +1187,7 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               vx: newVx,
               vy: newVy,
               echoState: updatedEchoState,
+              orbitState: updatedOrbitState,
             };
           });
         });
@@ -1199,6 +1396,136 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           return null;
         })}
 
+        {/* Render orbit spirits */}
+        {spirits.map((spirit) => {
+          if (spirit.config.behavior === 'orbit' && spirit.orbitState) {
+            const orbitState = spirit.orbitState;
+            const cursor = cursorRef.current;
+
+            // Calculate orbit position around cursor (or center if no cursor)
+            const centerX = cursor?.xPct ?? 50;
+            const centerY = cursor?.yPct ?? 50;
+            const orbitX = centerX + Math.cos(orbitState.angle) * orbitState.radius;
+            const orbitY = centerY + Math.sin(orbitState.angle) * orbitState.radius;
+
+            // Determine if spirit is clickable (stability >= 1)
+            const isClickable = orbitState.stabilityProgress >= 1;
+
+            return (
+              <button
+                key={spirit.instanceId}
+                onClick={() => {
+                  if (isClickable) {
+                    onSpiritClick({
+                      instanceId: spirit.instanceId,
+                      configId: spirit.configId,
+                      config: spirit.config,
+                    });
+                  }
+                }}
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
+                style={{
+                  left: `${orbitX}%`,
+                  top: `${orbitY}%`,
+                  width: spirit.config.size,
+                  height: spirit.config.size,
+                  opacity: isClickable ? 1 : 0.8, // Slightly dim when not clickable
+                }}
+                aria-label={`${spirit.config.displayName} (${spirit.config.rarity}) - ${isClickable ? 'Ready' : 'Stabilizing'}`}
+                title={spirit.config.displayName}
+              >
+                {/* Orbit ring indicator */}
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: '50%',
+                    top: '50%',
+                    width: spirit.config.size * 3,
+                    height: spirit.config.size * 3,
+                    transform: 'translate(-50%, -50%)',
+                    borderRadius: '50%',
+                    border: `2px solid ${orbitState.isGreenPhase ?
+                      `hsl(${spirit.config.hue}, 70%, 60%, 0.6)` :
+                      `hsl(${spirit.config.hue}, 50%, 50%, 0.4)`}`,
+                    background: `radial-gradient(circle,
+                      ${orbitState.isGreenPhase ?
+                        `hsl(${spirit.config.hue}, 80%, 70%, 0.3) 0%,
+                        hsl(${spirit.config.hue}, 70%, 60%, 0.15) 50%,
+                        transparent 100%` :
+                        `hsl(${spirit.config.hue}, 30%, 40%, 0.2) 0%,
+                        hsl(${spirit.config.hue}, 40%, 30%, 0.1) 50%,
+                        transparent 100%`
+                    }`,
+                    boxShadow: orbitState.isGreenPhase ? `
+                      0 0 ${spirit.config.size * 2}px hsl(${spirit.config.hue}, 85%, 65%, 0.8),
+                      0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 75%, 55%, 0.4),
+                      inset 0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 90%, 75%, 0.3)
+                    ` : `
+                      0 0 ${spirit.config.size * 1.5}px hsl(${spirit.config.hue}, 40%, 35%, 0.3),
+                      0 0 ${spirit.config.size * 2.5}px hsl(${spirit.config.hue}, 35%, 25%, 0.2),
+                      inset 0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 45%, 40%, 0.2)
+                    `,
+                    animation: orbitState.isGreenPhase ? 'pulse 2s infinite' : 'none',
+                  }}
+                />
+
+                {/* Stability progress ring */}
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: '50%',
+                    top: '50%',
+                    width: spirit.config.size * 2.5,
+                    height: spirit.config.size * 2.5,
+                    transform: 'translate(-50%, -50%)',
+                    borderRadius: '50%',
+                    border: `1px solid hsl(${spirit.config.hue}, 70%, 60%, ${0.3 + orbitState.stabilityProgress * 0.4})`,
+                    background: `radial-gradient(circle,
+                      transparent 0%,
+                      transparent 70%,
+                      hsl(${spirit.config.hue}, 70%, 60%, ${0.1 + orbitState.stabilityProgress * 0.2}) 70%,
+                      transparent 100%
+                    )`,
+                  }}
+                />
+
+                {/* Core glow */}
+                <div
+                  className="absolute inset-0 rounded-full animate-pulse"
+                  style={{
+                    background: `radial-gradient(circle,
+                      hsl(${spirit.config.hue}, 80%, 80%) 0%,
+                      hsl(${spirit.config.hue}, 70%, 60%) 30%,
+                      hsl(${spirit.config.hue}, 60%, 40%) 60%,
+                      transparent 100%)`,
+                    boxShadow: `
+                      0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 70%, 60%),
+                      0 0 ${spirit.config.size * 2}px hsl(${spirit.config.hue}, 60%, 50%),
+                      0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 50%, 40%)
+                    `,
+                  }}
+                />
+
+                {/* Inner bright core */}
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    top: '25%',
+                    left: '25%',
+                    width: '50%',
+                    height: '50%',
+                    background: `radial-gradient(circle,
+                      white 0%,
+                      hsl(${spirit.config.hue}, 80%, 90%) 50%,
+                      transparent 100%)`,
+                  }}
+                />
+              </button>
+            );
+          }
+          return null;
+        })}
+
         {/* Render echo spirits (fake echoes) */}
         {spirits.map((spirit) => {
           if (spirit.config.behavior === 'echo' && spirit.echoState) {
@@ -1286,6 +1613,8 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
 
         {/* Render spirits */}
         {spirits.map((spirit) => {
+          // Skip orbit spirits - they're rendered above
+          if (spirit.config.behavior === 'orbit') return null;
           const isCurious = spirit.config.behavior === 'curious';
           const isAwakened = isCurious && spirit.curiousState?.isAwakened;
           const curiosityProgress = spirit.curiousState?.curiosityProgress ?? 0;
@@ -1298,7 +1627,13 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           const isEcho = spirit.config.behavior === 'echo';
           const echoResolved = isEcho && spirit.echoState?.hasResolved;
 
-          const canClick = (!isRhythm || rhythmCompleted) && (!isEcho || !echoResolved);
+          // For orbit spirits, only clickable when stability is full
+          const isOrbit = spirit.config.behavior === 'orbit';
+          const orbitCompleted = isOrbit && spirit.orbitState?.stabilityProgress >= 1;
+
+          const canClick = (!isRhythm || rhythmCompleted) &&
+                        (!isEcho || !echoResolved) &&
+                        (!isOrbit || orbitCompleted);
 
           return (
             <button

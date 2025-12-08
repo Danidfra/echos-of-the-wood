@@ -19,6 +19,8 @@ import { RHYTHM_BASE } from './rhythm/base';
 import { RHYTHM_VARIANTS } from './rhythm/variants';
 import { ECHO_BASE } from './echo/base';
 import { ECHO_VARIANTS } from './echo/variants';
+import { ORBIT_BASE } from './orbit/base';
+import { ORBIT_VARIANTS } from './orbit/variants';
 
 // ============================================================================
 // BASE CONFIGS REGISTRY
@@ -31,6 +33,7 @@ const BASES: Record<string, SpiritBaseConfig> = {
   'curious': CURIOUS_BASE,
   'rhythm': RHYTHM_BASE,
   'echo': ECHO_BASE,
+  'orbit': ORBIT_BASE,
   // Future behaviors:
   // etc.
 };
@@ -134,6 +137,7 @@ export const ALL_RESOLVED_SPIRITS: ResolvedSpiritConfig[] = [
   ...CURIOUS_VARIANTS.map(resolveSpiritVariant),
   ...RHYTHM_VARIANTS.map(resolveSpiritVariant),
   ...ECHO_VARIANTS.map(resolveSpiritVariant),
+  ...ORBIT_VARIANTS.map(resolveSpiritVariant),
   // Future behaviors will be added here:
   // etc.
 ];

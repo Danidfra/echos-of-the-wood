@@ -14,8 +14,8 @@ export type SpiritBehaviorType =
   | 'curious'
   | 'rhythm'
   | 'echo'
+  | 'orbit'
   // Future behaviors:
-  // | 'orbit'
   // | 'pattern'
   ;
 
