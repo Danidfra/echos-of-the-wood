@@ -4,7 +4,7 @@
  * Defines all variants of the rhythm spirit behavior across different rarities.
  * Rhythm spirits emit rhythmic pulses and require players to match beat patterns.
  *
- * Each rarity has 3 possible rhythm patterns inspired by classical music rhythms.
+ * Each rarity has 3 possible rhythm patterns inspired by classical / iconic rhythms.
  */
 
 import { SpiritVariantConfig } from '../types';
@@ -37,36 +37,45 @@ export const RHYTHM_PATTERNS = {
   ],
 
   uncommon: [
-    // Pattern 1: Inspired by "Ode to Joy" opening (8 beats)
-    [500, 500, 500, 700, 500, 500, 500, 700],
+    // Pattern 1: Extended "Ode to Joy"-like phrase (9 clicks / 8 intervals)
+    // ta ta ta taa | ta ta ta taa
+    [520, 520, 520, 800, 520, 520, 520, 800],
 
-    // Pattern 2: March with syncopation (7 beats)
-    [550, 400, 550, 550, 400, 550],
+    // Pattern 2: March with light syncopation (8 clicks / 7 intervals)
+    // strong - weak - strong | strong - weak - strong - strong
+    [650, 520, 650, 650, 520, 650, 650],
 
-    // Pattern 3: Moderate waltz with variation (7 beats)
-    [600, 500, 500, 600, 400, 600],
+    // Pattern 3: Moderate waltz phrase (7 clicks / 6 intervals)
+    // ONE-two-three | ONE-two-three
+    [700, 700, 520, 700, 700, 520],
   ],
 
   rare: [
-    // Pattern 1: Complex waltz with tempo changes (10 beats)
-    [500, 450, 400, 500, 450, 400, 500, 450, 400],
+    // Pattern 1: Galloping rhythm (horse-trot style) extended (10 clicks / 9 intervals)
+    // ta-ta-TAA | ta-ta-TAA | ta-ta-TAA
+    [520, 520, 650, 520, 520, 650, 520, 520, 650],
 
-    // Pattern 2: Syncopated classical rhythm (11 beats)
-    [450, 450, 600, 450, 450, 600, 450, 450, 600],
+    // Pattern 2: Syncopated 4/4 loop (11 clicks / 10 intervals)
+    // strong - weak - strong - weak | strong - weak - strong - weak - strong
+    [520, 650, 520, 520, 650, 520, 520, 650, 520, 520],
 
-    // Pattern 3: Galloping rhythm (horse trot) (10 beats)
-    [400, 400, 550, 400, 400, 550, 400, 400, 550],
+    // Pattern 3: Beethoven motif + march tail (10 clicks / 9 intervals)
+    // short-short-short-long | march-march-march
+    [520, 520, 520, 800, 650, 520, 650, 520, 650],
   ],
 
   mythic: [
-    // Pattern 1: Inspired by "Flight of the Bumblebee" - rapid succession (14 beats)
-    [400, 400, 400, 400, 400, 400, 550, 400, 400, 400, 400, 400, 400],
+    // Pattern 1: Two gallops + Beethoven motif (14 clicks / 13 intervals)
+    // (gallop x2) + (short-short-short-long)
+    [520, 520, 650, 520, 520, 650, 520, 520, 650, 520, 520, 520, 800],
 
-    // Pattern 2: Complex syncopation with speed changes (13 beats)
-    [350, 350, 500, 350, 350, 450, 350, 350, 500, 350, 350, 450],
+    // Pattern 2: Long “journey” pattern with occasional long breath (14 clicks / 13 intervals)
+    // short/medium alternation with a long accent in the middle
+    [520, 650, 520, 650, 520, 650, 800, 520, 650, 520, 650, 520, 650],
 
-    // Pattern 3: Virtuoso pattern - irregular spacing (14 beats)
-    [350, 350, 350, 500, 350, 350, 350, 450, 350, 350, 350, 500, 350],
+    // Pattern 3: Waltz intro + triple gallop chain (16 clicks / 15 intervals)
+    // waltz (3/4) then extended gallop sequence
+    [700, 700, 520, 700, 700, 520, 520, 520, 650, 520, 520, 650, 520, 520, 650],
   ],
 } as const;
 
@@ -127,7 +136,7 @@ export const RHYTHM_VARIANTS: SpiritVariantConfig[] = [
   },
 
   // ============================================================================
-  // RARE VARIANTS - Complex patterns, faster tempo
+  // RARE VARIANTS - Complex patterns, more beats (but similar tempo)
   // ============================================================================
   {
     id: 'rhythm-rare-01',
@@ -149,7 +158,7 @@ export const RHYTHM_VARIANTS: SpiritVariantConfig[] = [
   },
 
   // ============================================================================
-  // MYTHIC VARIANTS - Very fast, long sequences, strict timing
+  // MYTHIC VARIANTS - Long sequences, strict timing, iconic-feeling rhythms
   // ============================================================================
   {
     id: 'rhythm-mythic-01',
