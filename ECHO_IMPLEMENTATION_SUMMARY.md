@@ -24,11 +24,16 @@ Successfully implemented the **Echo** spirit behavior following the exact struct
 ## Movement
 - Echo spirits use **normal wandering movement** (baseSpeed: 1.0)
 - **No cursor interaction** - they neither chase nor flee
-- Echo copies maintain their position offsets relative to the main spirit
-- Offsets are calculated in a circular pattern with randomization:
+- **Each echo moves independently** with its own position and velocity
+- Echoes spawn in a circular pattern around the main spirit:
   - Base radius: 15% of container
   - Random variation: ±8%
   - Angular randomization: ±0.5 radians
+- After spawning, each echo wanders independently:
+  - Each has its own velocity (vx, vy)
+  - Boundary bounce logic applied per echo
+  - Random direction changes per echo
+  - Velocity clamping per echo
 
 ## Files Created
 
@@ -81,10 +86,12 @@ Added `'echo'` to `SpiritBehaviorType` union type.
 ```typescript
 echoState?: {
   echoes: Array<{
-    offsetX: number;
-    offsetY: number;
-    isReal: boolean;
-    isGone: boolean;
+    xPct: number;      // absolute position in %
+    yPct: number;      // absolute position in %
+    vx: number;        // velocity x
+    vy: number;        // velocity y
+    isReal: boolean;   // true for real echo, false for fakes
+    isGone: boolean;   // true when fake has been clicked
   }>;
   hasResolved: boolean;
 };
@@ -93,16 +100,20 @@ echoState?: {
 **Initialization in `createActiveSpirit()`:**
 - Determines echo count based on rarity
 - Randomly selects which echo is real
-- Creates circular formation with randomized positions
+- Creates circular formation around main spirit with randomized positions
+- Each echo gets absolute position (xPct, yPct) clamped to bounds (5-95%)
+- Each echo gets its own random velocity (vx, vy)
 
 **Behavior in animation loop:**
-- Echo spirits use base wandering behavior
-- No special cursor interaction
-- Echoes maintain position offsets
+- Main spirit uses base wandering behavior
+- Each echo updates independently with its own wandering movement
+- Each echo has boundary bounce logic, random jitter, and velocity clamping
+- No cursor interaction for echoes or main spirit
 
 **Rendering:**
 - Fake echoes rendered separately with reduced opacity (0.7)
 - Real echo rendered in main spirits section with full opacity (1.0)
+- Positions use absolute xPct/yPct (no offset calculation)
 - Click handlers for fake echoes (remove) and real echo (resolve)
 
 ### 6. `src/components/game/SceneViewport.tsx`
@@ -133,7 +144,7 @@ onClick={(e) => {
 if (isEcho && spirit.echoState && !echoResolved) {
   e.stopPropagation();
   const realEchoIndex = spirit.echoState.echoes.findIndex(echo => echo.isReal);
-  
+
   if (realEchoIndex !== -1) {
     // Mark as resolved
     setSpirits(prevSpirits =>
@@ -144,7 +155,7 @@ if (isEcho && spirit.echoState && !echoResolved) {
         return s;
       })
     );
-    
+
     // Trigger spirit click event
     onSpiritClick({ instanceId, configId, config });
   }
@@ -156,7 +167,26 @@ if (isEcho && spirit.echoState && !echoResolved) {
 - **Opacity**: Fake echoes at 0.7, real echo at 1.0
 - **Glow Effect**: Same radial gradient and box-shadow as other spirits
 - **Hover Effect**: 125% scale on hover (via CSS class)
-- **Formation**: Circular pattern around main spirit with semi-random positioning
+- **Formation**: Circular pattern around main spirit at spawn, then independent movement
+- **Animation**: Each echo wanders independently, creating a scattered, confusing effect
+
+## Implementation History
+
+### Initial Implementation
+- Created echo spirit with offset-based positioning
+- All echoes moved together with main spirit
+- Basic click mechanics working
+
+### Fix: Independent Echo Movement (Current)
+**Problem**: All fake echoes were locked to the main spirit's position using offsets, making them move as a group.
+
+**Solution**:
+- Changed echo state from offset-based (offsetX, offsetY) to absolute positioning (xPct, yPct)
+- Added independent velocity (vx, vy) for each echo
+- Each echo now updates its position independently in the animation loop
+- Each echo has its own wandering behavior, bounce logic, and velocity clamping
+
+**Result**: Fake echoes now scatter and wander independently, making it much harder to identify the real echo. This creates the intended "which one is real?" challenge.
 
 ## Testing
 - ✅ All tests pass
@@ -164,6 +194,7 @@ if (isEcho && spirit.echoState && !echoResolved) {
 - ✅ ESLint validation passed
 - ✅ Build successful
 - ✅ Testable via debug modal
+- ✅ No impact on other spirit behaviors
 
 ## Integration Notes
 - Follows exact same patterns as Shy, Hunter, Curious, and Rhythm behaviors
