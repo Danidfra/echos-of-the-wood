@@ -56,8 +56,10 @@ interface ActiveSpirit {
   // Echo-specific state
   echoState?: {
     echoes: Array<{
-      offsetX: number;          // offset from main spirit in %
-      offsetY: number;          // offset from main spirit in %
+      xPct: number;             // absolute position in %
+      yPct: number;             // absolute position in %
+      vx: number;               // velocity x
+      vy: number;               // velocity y
       isReal: boolean;          // true for the real echo, false for fakes
       isGone: boolean;          // true when fake has been clicked
     }>;
@@ -164,10 +166,12 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
         const totalEchoes = echoCountByRarity[config.rarity];
         const realIndex = Math.floor(Math.random() * totalEchoes); // Pick which echo is real
 
-        // Create echoes in a circular/semi-random formation
+        // Create echoes with independent positions and velocities
         const echoes: Array<{
-          offsetX: number;
-          offsetY: number;
+          xPct: number;
+          yPct: number;
+          vx: number;
+          vy: number;
           isReal: boolean;
           isGone: boolean;
         }> = [];
@@ -175,13 +179,27 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
         const radiusVariation = 8; // Random variation in distance
 
         for (let i = 0; i < totalEchoes; i++) {
-          // Calculate position in a circle with some randomness
+          // Calculate position in a circle with some randomness around the main spirit
           const angle = (i / totalEchoes) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
           const radius = baseRadius + Math.random() * radiusVariation;
 
+          // Calculate absolute position
+          let echoX = baseSpirit.x + Math.cos(angle) * radius;
+          let echoY = baseSpirit.y + Math.sin(angle) * radius;
+
+          // Clamp within bounds (5-95%)
+          echoX = Math.max(5, Math.min(95, echoX));
+          echoY = Math.max(5, Math.min(95, echoY));
+
+          // Give each echo its own random velocity (similar to spirit initialization)
+          const echoVx = (Math.random() - 0.5) * 2;
+          const echoVy = (Math.random() - 0.5) * 2;
+
           echoes.push({
-            offsetX: Math.cos(angle) * radius,
-            offsetY: Math.sin(angle) * radius,
+            xPct: echoX,
+            yPct: echoY,
+            vx: echoVx,
+            vy: echoVy,
             isReal: i === realIndex,
             isGone: false,
           });
@@ -903,12 +921,76 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
             newVx = Math.max(-maxVel, Math.min(maxVel, newVx));
             newVy = Math.max(-maxVel, Math.min(maxVel, newVy));
 
+            // 6) Update echo positions independently (if this is an echo spirit)
+            let updatedEchoState = spirit.echoState;
+            if (spirit.config.behavior === 'echo' && spirit.echoState) {
+              const updatedEchoes = spirit.echoState.echoes.map((echo) => {
+                // Skip updating echoes that have been removed
+                if (echo.isGone) return echo;
+
+                // Each echo has independent wandering movement
+                let echoNewVx = echo.vx;
+                let echoNewVy = echo.vy;
+                let echoNewX = echo.xPct + echoNewVx * speedMultiplier * deltaTime * 0.3;
+                let echoNewY = echo.yPct + echoNewVy * speedMultiplier * deltaTime * 0.3;
+
+                // Boundary checking with bounce (same as main spirit)
+                const margin = 5;
+                const maxX = 95;
+                const maxY = 95;
+
+                if (echoNewX < margin) {
+                  echoNewX = margin;
+                  echoNewVx = Math.abs(echoNewVx) * (0.8 + Math.random() * 0.4);
+                  echoNewVy += (Math.random() - 0.5) * 0.5;
+                } else if (echoNewX > maxX) {
+                  echoNewX = maxX;
+                  echoNewVx = -Math.abs(echoNewVx) * (0.8 + Math.random() * 0.4);
+                  echoNewVy += (Math.random() - 0.5) * 0.5;
+                }
+
+                if (echoNewY < margin) {
+                  echoNewY = margin;
+                  echoNewVy = Math.abs(echoNewVy) * (0.8 + Math.random() * 0.4);
+                  echoNewVx += (Math.random() - 0.5) * 0.5;
+                } else if (echoNewY > maxY) {
+                  echoNewY = maxY;
+                  echoNewVy = -Math.abs(echoNewVy) * (0.8 + Math.random() * 0.4);
+                  echoNewVx += (Math.random() - 0.5) * 0.5;
+                }
+
+                // Occasional random direction changes (same as main spirit)
+                if (Math.random() < 0.005) {
+                  echoNewVx += (Math.random() - 0.5) * 1;
+                  echoNewVy += (Math.random() - 0.5) * 1;
+                }
+
+                // Clamp velocity
+                echoNewVx = Math.max(-maxVel, Math.min(maxVel, echoNewVx));
+                echoNewVy = Math.max(-maxVel, Math.min(maxVel, echoNewVy));
+
+                return {
+                  ...echo,
+                  xPct: echoNewX,
+                  yPct: echoNewY,
+                  vx: echoNewVx,
+                  vy: echoNewVy,
+                };
+              });
+
+              updatedEchoState = {
+                ...spirit.echoState,
+                echoes: updatedEchoes,
+              };
+            }
+
             return {
               ...spirit,
               x: newX,
               y: newY,
               vx: newVx,
               vy: newVy,
+              echoState: updatedEchoState,
             };
           });
         });
@@ -1127,9 +1209,9 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
               // Skip rendering the real echo here - it will be rendered in the main spirits section
               if (echo.isReal) return null;
 
-              // Calculate echo position
-              const echoX = spirit.x + echo.offsetX;
-              const echoY = spirit.y + echo.offsetY;
+              // Use absolute position (no longer offset-based)
+              const echoX = echo.xPct;
+              const echoY = echo.yPct;
 
               return (
                 <button
