@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { ResolvedSpiritConfig, SpiritRarity } from '@/game/spirits/types';
+import type { ResolvedSpiritConfig, SpiritRarity } from '@/game/spirits/types';
 import { getSpiritById, getRandomSpiritsForInitialSpawn } from '@/game/spirits/registry';
 import { RHYTHM_PATTERNS, RHYTHM_TOLERANCES } from '@/game/spirits/rhythm/variants';
 
@@ -51,6 +51,17 @@ interface ActiveSpirit {
     lastBeatTime: number;        // last time a beat was shown
     playbackComplete: boolean;   // pattern playback finished
     errorFlashUntil?: number;    // timestamp when error flash animation ends
+  };
+
+  // Echo-specific state
+  echoState?: {
+    echoes: Array<{
+      offsetX: number;          // offset from main spirit in %
+      offsetY: number;          // offset from main spirit in %
+      isReal: boolean;          // true for the real echo, false for fakes
+      isGone: boolean;          // true when fake has been clicked
+    }>;
+    hasResolved: boolean;       // true when real echo has been clicked
   };
 }
 
@@ -136,6 +147,51 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
             currentBeatIndex: 0,
             lastBeatTime: 0,
             playbackComplete: false,
+          },
+        };
+      }
+
+      // Initialize echo state for echo spirits
+      if (config.behavior === 'echo') {
+        // Determine number of echoes based on rarity
+        const echoCountByRarity: Record<SpiritRarity, number> = {
+          common: 3,      // 3 total echoes (1 real + 2 fake)
+          uncommon: 4,    // 4 total echoes (1 real + 3 fake)
+          rare: 6,        // 6 total echoes (1 real + 5 fake)
+          mythic: 8,      // 8 total echoes (1 real + 7 fake)
+        };
+
+        const totalEchoes = echoCountByRarity[config.rarity];
+        const realIndex = Math.floor(Math.random() * totalEchoes); // Pick which echo is real
+
+        // Create echoes in a circular/semi-random formation
+        const echoes: Array<{
+          offsetX: number;
+          offsetY: number;
+          isReal: boolean;
+          isGone: boolean;
+        }> = [];
+        const baseRadius = 15; // Base distance from main spirit in %
+        const radiusVariation = 8; // Random variation in distance
+
+        for (let i = 0; i < totalEchoes; i++) {
+          // Calculate position in a circle with some randomness
+          const angle = (i / totalEchoes) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+          const radius = baseRadius + Math.random() * radiusVariation;
+
+          echoes.push({
+            offsetX: Math.cos(angle) * radius,
+            offsetY: Math.sin(angle) * radius,
+            isReal: i === realIndex,
+            isGone: false,
+          });
+        }
+
+        return {
+          ...baseSpirit,
+          echoState: {
+            echoes,
+            hasResolved: false,
           },
         };
       }
@@ -558,6 +614,15 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
                 spirit.curiousState.lastCursorX = cursor.xPct;
                 spirit.curiousState.lastCursorY = cursor.yPct;
               }
+            } else if (spirit.config.behavior === 'echo') {
+              // ===== ECHO SPIRIT BEHAVIOR =====
+              // Echo spirits use normal wandering movement
+              // No cursor interaction - they neither chase nor flee
+              // The echoes maintain their position offsets relative to the main spirit
+
+              // Normal wandering behavior is already applied above in step 1
+              // No additional behavior modifications needed for echo spirits
+
             } else if (spirit.config.behavior === 'rhythm') {
               // ===== RHYTHM SPIRIT BEHAVIOR =====
               if (!spirit.rhythmState) {
@@ -1052,6 +1117,91 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           return null;
         })}
 
+        {/* Render echo spirits (fake echoes) */}
+        {spirits.map((spirit) => {
+          if (spirit.config.behavior === 'echo' && spirit.echoState) {
+            return spirit.echoState.echoes.map((echo, echoIndex) => {
+              // Skip if this echo has been clicked and removed
+              if (echo.isGone) return null;
+
+              // Skip rendering the real echo here - it will be rendered in the main spirits section
+              if (echo.isReal) return null;
+
+              // Calculate echo position
+              const echoX = spirit.x + echo.offsetX;
+              const echoY = spirit.y + echo.offsetY;
+
+              return (
+                <button
+                  key={`${spirit.instanceId}-echo-${echoIndex}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Clicking a fake echo removes it
+                    setSpirits(prevSpirits =>
+                      prevSpirits.map(s => {
+                        if (s.instanceId === spirit.instanceId && s.echoState) {
+                          const newEchoes = [...s.echoState.echoes];
+                          newEchoes[echoIndex] = { ...newEchoes[echoIndex], isGone: true };
+                          return {
+                            ...s,
+                            echoState: {
+                              ...s.echoState,
+                              echoes: newEchoes,
+                            },
+                          };
+                        }
+                        return s;
+                      })
+                    );
+                  }}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-2 focus:ring-offset-transparent rounded-full"
+                  style={{
+                    left: `${echoX}%`,
+                    top: `${echoY}%`,
+                    width: spirit.config.size,
+                    height: spirit.config.size,
+                    opacity: 0.7, // Fake echoes are slightly transparent
+                  }}
+                  aria-label={`${spirit.config.displayName} Echo (Fake)`}
+                  title={`${spirit.config.displayName} Echo`}
+                >
+                  {/* Core glow */}
+                  <div
+                    className="absolute inset-0 rounded-full animate-pulse"
+                    style={{
+                      background: `radial-gradient(circle,
+                        hsl(${spirit.config.hue}, 80%, 80%) 0%,
+                        hsl(${spirit.config.hue}, 70%, 60%) 30%,
+                        hsl(${spirit.config.hue}, 60%, 40%) 60%,
+                        transparent 100%)`,
+                      boxShadow: `
+                        0 0 ${spirit.config.size}px hsl(${spirit.config.hue}, 70%, 60%),
+                        0 0 ${spirit.config.size * 2}px hsl(${spirit.config.hue}, 60%, 50%),
+                        0 0 ${spirit.config.size * 3}px hsl(${spirit.config.hue}, 50%, 40%)
+                      `,
+                    }}
+                  />
+                  {/* Inner bright core */}
+                  <div
+                    className="absolute rounded-full"
+                    style={{
+                      top: '25%',
+                      left: '25%',
+                      width: '50%',
+                      height: '50%',
+                      background: `radial-gradient(circle,
+                        white 0%,
+                        hsl(${spirit.config.hue}, 80%, 90%) 50%,
+                        transparent 100%)`,
+                    }}
+                  />
+                </button>
+              );
+            });
+          }
+          return null;
+        })}
+
         {/* Render spirits */}
         {spirits.map((spirit) => {
           const isCurious = spirit.config.behavior === 'curious';
@@ -1061,12 +1211,51 @@ export const SpiritLayer = forwardRef<SpiritLayerHandle, SpiritLayerProps>(
           // Determine if this spirit can be clicked
           const isRhythm = spirit.config.behavior === 'rhythm';
           const rhythmCompleted = isRhythm && spirit.rhythmState?.hasCompleted;
-          const canClick = !isRhythm || rhythmCompleted;
+
+          // For echo spirits, only clickable if not yet resolved
+          const isEcho = spirit.config.behavior === 'echo';
+          const echoResolved = isEcho && spirit.echoState?.hasResolved;
+
+          const canClick = (!isRhythm || rhythmCompleted) && (!isEcho || !echoResolved);
 
           return (
             <button
               key={spirit.instanceId}
-              onClick={() => {
+              onClick={(e) => {
+                // Handle echo spirit clicks
+                if (isEcho && spirit.echoState && !echoResolved) {
+                  e.stopPropagation();
+
+                  // Find the real echo
+                  const realEchoIndex = spirit.echoState.echoes.findIndex(echo => echo.isReal);
+
+                  if (realEchoIndex !== -1) {
+                    // Mark as resolved and trigger onSpiritClick
+                    setSpirits(prevSpirits =>
+                      prevSpirits.map(s => {
+                        if (s.instanceId === spirit.instanceId && s.echoState) {
+                          return {
+                            ...s,
+                            echoState: {
+                              ...s.echoState,
+                              hasResolved: true,
+                            },
+                          };
+                        }
+                        return s;
+                      })
+                    );
+
+                    // Trigger the spirit click event
+                    onSpiritClick({
+                      instanceId: spirit.instanceId,
+                      configId: spirit.configId,
+                      config: spirit.config,
+                    });
+                  }
+                  return;
+                }
+
                 // Only trigger onSpiritClick if:
                 // - It's NOT a rhythm spirit, OR
                 // - It's a rhythm spirit that has completed its pattern

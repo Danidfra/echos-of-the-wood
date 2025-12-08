@@ -535,6 +535,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                         <option value="hunter">Hunter</option>
                         <option value="curious">Curious</option>
                         <option value="rhythm">Rhythm</option>
+                        <option value="echo">Echo</option>
                         {/* Future behaviors will appear here automatically */}
                       </select>
                     </div>

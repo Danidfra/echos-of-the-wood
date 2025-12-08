@@ -17,6 +17,8 @@ import { CURIOUS_BASE } from './curious/base';
 import { CURIOUS_VARIANTS } from './curious/variants';
 import { RHYTHM_BASE } from './rhythm/base';
 import { RHYTHM_VARIANTS } from './rhythm/variants';
+import { ECHO_BASE } from './echo/base';
+import { ECHO_VARIANTS } from './echo/variants';
 
 // ============================================================================
 // BASE CONFIGS REGISTRY
@@ -28,6 +30,7 @@ const BASES: Record<string, SpiritBaseConfig> = {
   'hunter': HUNTER_BASE,
   'curious': CURIOUS_BASE,
   'rhythm': RHYTHM_BASE,
+  'echo': ECHO_BASE,
   // Future behaviors:
   // etc.
 };
@@ -130,6 +133,7 @@ export const ALL_RESOLVED_SPIRITS: ResolvedSpiritConfig[] = [
   ...HUNTER_VARIANTS.map(resolveSpiritVariant),
   ...CURIOUS_VARIANTS.map(resolveSpiritVariant),
   ...RHYTHM_VARIANTS.map(resolveSpiritVariant),
+  ...ECHO_VARIANTS.map(resolveSpiritVariant),
   // Future behaviors will be added here:
   // etc.
 ];

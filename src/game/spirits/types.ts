@@ -13,8 +13,8 @@ export type SpiritBehaviorType =
   | 'hunter'
   | 'curious'
   | 'rhythm'
+  | 'echo'
   // Future behaviors:
-  // | 'echo'
   // | 'orbit'
   // | 'pattern'
   ;
