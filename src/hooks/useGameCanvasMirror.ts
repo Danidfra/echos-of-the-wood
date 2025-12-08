@@ -116,13 +116,12 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
       const y = (spirit.y / 100) * canvas.height;
       const radius = spirit.size / 2;
 
-      // Convert HSL to RGB for canvas
-      const hsl = `hsl(${spirit.hue}, 80%, 70%)`;
+      const hue = spirit.hue;
 
       // Draw outer glow
       const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 3);
-      glowGradient.addColorStop(0, hsl.replace('70%', '70%, 0.4'));
-      glowGradient.addColorStop(0.5, hsl.replace('70%', '60%, 0.2'));
+      glowGradient.addColorStop(0, `hsla(${hue}, 80%, 70%, 0.4)`);
+      glowGradient.addColorStop(0.5, `hsla(${hue}, 80%, 60%, 0.2)`);
       glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = glowGradient;
       ctx.fillRect(x - radius * 3, y - radius * 3, radius * 6, radius * 6);
@@ -130,8 +129,8 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
       // Draw spirit core
       const coreGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
       coreGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-      coreGradient.addColorStop(0.3, hsl.replace('70%', '80%)'));
-      coreGradient.addColorStop(1, hsl.replace('70%', '60%)'));
+      coreGradient.addColorStop(0.3, `hsla(${hue}, 80%, 80%, 1)`);
+      coreGradient.addColorStop(1, `hsla(${hue}, 80%, 60%, 1)`);
       ctx.fillStyle = coreGradient;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
