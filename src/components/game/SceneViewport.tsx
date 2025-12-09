@@ -239,8 +239,8 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
   /**
    * Auto-spawn demo system
    *
-   * When enabled, spawns a random spirit every 40 seconds.
-   * Ensures at least 5 spirits are spawned and that we get at least one of each behavior type.
+   * When enabled, spawns at least 5 random spirits every 40 seconds.
+   * Ensures we get at least one of each behavior type over time.
    * Both behavior and rarity are chosen randomly from the registry.
    */
   useEffect(() => {
@@ -253,44 +253,54 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
     autoSpawnCountRef.current = 0;
     seenBehaviorsRef.current = new Set();
 
-    // Auto-spawn function
-    const spawnRandomSpirit = () => {
+    // Auto-spawn function - spawns at least 5 spirits at once
+    const spawnRandomSpirits = () => {
       // Check if spiritLayerRef is ready
       if (!spiritLayerRef.current) {
         console.warn('[Auto-spawn] SpiritLayer not ready yet');
         return;
       }
 
-      // Pick a random spirit with behavior coverage logic
-      const spirit = pickRandomSpiritForAutoSpawn(seenBehaviorsRef.current);
+      const spiritsToSpawn = 5; // Spawn at least 5 spirits each time
+      const spawnedThisTick: Array<{ name: string; behavior: SpiritBehaviorType; rarity: SpiritRarity }> = [];
 
-      if (!spirit) {
-        console.warn('[Auto-spawn] No spirit found to spawn');
-        return;
+      for (let i = 0; i < spiritsToSpawn; i++) {
+        // Pick a random spirit with behavior coverage logic
+        const spirit = pickRandomSpiritForAutoSpawn(seenBehaviorsRef.current);
+
+        if (!spirit) {
+          console.warn('[Auto-spawn] No spirit found to spawn');
+          continue;
+        }
+
+        // Spawn the spirit
+        spiritLayerRef.current.spawnById(spirit.id);
+
+        // Update tracking
+        autoSpawnCountRef.current += 1;
+        seenBehaviorsRef.current.add(spirit.behavior);
+
+        spawnedThisTick.push({
+          name: spirit.displayName,
+          behavior: spirit.behavior,
+          rarity: spirit.rarity,
+        });
       }
 
-      // Spawn the spirit
-      spiritLayerRef.current.spawnById(spirit.id);
-
-      // Update tracking
-      autoSpawnCountRef.current += 1;
-      seenBehaviorsRef.current.add(spirit.behavior);
-
-      console.log('[Auto-spawn]', {
-        count: autoSpawnCountRef.current,
-        spirit: spirit.displayName,
-        behavior: spirit.behavior,
-        rarity: spirit.rarity,
+      console.log('[Auto-spawn] Spawned batch', {
+        totalCount: autoSpawnCountRef.current,
+        batchSize: spawnedThisTick.length,
+        spirits: spawnedThisTick,
         seenBehaviors: Array.from(seenBehaviorsRef.current),
       });
     };
 
-    // Spawn the first spirit immediately
-    spawnRandomSpirit();
+    // Spawn the first batch immediately
+    spawnRandomSpirits();
 
     // Set up interval to spawn every 40 seconds
     const intervalId = setInterval(() => {
-      spawnRandomSpirit();
+      spawnRandomSpirits();
     }, 40_000); // 40 seconds
 
     // Cleanup: clear interval when component unmounts or auto-spawn is disabled
@@ -723,7 +733,7 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                           Auto-spawn demo spirits
                         </label>
                         <p className="text-xs text-spirit-muted mt-1">
-                          Every 40 seconds, spawn a random spirit for debugging/demo. Ensures at least one of each behavior type.
+                          Every 40 seconds, spawn 5 random spirits for debugging/demo. Ensures at least one of each behavior type.
                         </p>
                       </div>
                     </div>
