@@ -303,14 +303,19 @@ function initializeGrass(
   isNight: boolean
 ): GrassObject[] {
   const grass: GrassObject[] = [];
-  
-  // Calculate grass area dimensions
-  const grassHeight = canvasHeight * grassHeightFactor;
+
+  // Mesmo comportamento visual do Midground:
+  // - a grama vive em uma "faixa" na parte de baixo
+  // - essa faixa tem 1/3 da altura total da cena
+  const GRASS_CONTAINER_HEIGHT_FACTOR = 2 / 3;
+
+  const grassContainerHeight = canvasHeight * GRASS_CONTAINER_HEIGHT_FACTOR;
+  const grassHeight = grassContainerHeight * grassHeightFactor;
   const hVariation = 0.3;
   const hf = grassHeight * hVariation;
-  
-  // Scale grass width based on canvas size
-  const grassWidth = Math.max(8, canvasWidth * 0.01); // 1% of canvas width, minimum 8px
+
+  // Largura da folha de grama proporcional ao canvas
+  const grassWidth = Math.max(8, canvasWidth * 0.01);
 
   for (let i = 0; i < numOfGrass; i++) {
     const x = canvasWidth * Math.random();
@@ -351,6 +356,8 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
   
   // Grass state
   const grassRef = useRef<GrassObject[]>([]);
+
+  const spiritsRef = useRef<SpiritPosition[]>([]);
   
   // Background image state
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
@@ -401,6 +408,10 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
       backgroundLoadedRef.current = false;
     });
   }, [isNight]);
+
+  useEffect(() => {
+    spiritsRef.current = spirits;
+  }, [spirits]);
 
   // Initialize or reinitialize grass when parameters change
   useEffect(() => {
@@ -498,7 +509,9 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
     // LAYER 3: Spirits
     // ========================================================================
 
-    spirits.forEach(spirit => {
+    const currentSpirits = spiritsRef.current;
+
+    currentSpirits.forEach(spirit => {
       const x = (spirit.x / 100) * canvasWidth;
       const y = (spirit.y / 100) * canvasHeight;
       const radius = spirit.size / 2;
@@ -534,7 +547,7 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
     ctx.font = '20px serif';
     ctx.textAlign = 'center';
     ctx.fillText('Echos of the Wood', canvasWidth / 2, 30);
-  }, [isNight, spirits, grassHeightFactor]);
+  }, [isNight, grassHeightFactor]);
 
   // Animation loop with smooth 60 FPS rendering
   useEffect(() => {

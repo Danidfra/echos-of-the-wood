@@ -163,6 +163,8 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
 
   // PiP: Update spirit positions periodically for canvas mirror
   useEffect(() => {
+    const intervalMs = Math.max(1000 / fps, 16);
+
     const updateInterval = setInterval(() => {
       const spirits = spiritLayerRef.current?.getSpirits() || [];
       const positions: SpiritPosition[] = spirits.map(spirit => ({
@@ -173,10 +175,10 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
         behavior: spirit.config.behavior,
       }));
       setSpiritPositions(positions);
-    }, 100); // Update 10 times per second
+    }, intervalMs);
 
     return () => clearInterval(updateInterval);
-  }, []);
+  }, [fps]);
 
   // Persist grass settings to localStorage whenever they change
   useEffect(() => {
