@@ -3,8 +3,8 @@ import { Settings, Sparkles } from 'lucide-react';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { MidgroundLayer } from './layers/MidgroundLayer';
 import { SpiritLayer, SpiritLayerHandle, SpiritClickPayload } from './layers/SpiritLayer';
-import { getSpiritsByBehaviorAndRarity } from '@/game/spirits/registry';
-import { SpiritBehaviorType, SpiritRarity } from '@/game/spirits/types';
+import { getSpiritsByBehaviorAndRarity, ALL_RESOLVED_SPIRITS, getRandomSpirit } from '@/game/spirits/registry';
+import { SpiritBehaviorType, SpiritRarity, ResolvedSpiritConfig } from '@/game/spirits/types';
 import { RARITIES } from '@/game/spirits/rarities';
 import { useGameCanvasMirror, SpiritPosition } from '@/hooks/useGameCanvasMirror';
 import { GamePiPToggleButton } from './pip/GamePiPToggleButton';
@@ -114,6 +114,45 @@ function loadInitialAudioSettings(): AudioSettings {
   }
 }
 
+/**
+ * All available behavior types for auto-spawn coverage tracking.
+ */
+const ALL_BEHAVIOR_TYPES: SpiritBehaviorType[] = [
+  'simple-glow',
+  'shy',
+  'hunter',
+  'curious',
+  'rhythm',
+  'echo',
+  'orbit',
+];
+
+/**
+ * Helper function to pick a random spirit for auto-spawn.
+ * Prioritizes behaviors that haven't been seen yet to ensure coverage.
+ *
+ * @param seenBehaviors - Set of behaviors already spawned in this session
+ * @returns A random spirit, biased towards unseen behaviors
+ */
+function pickRandomSpiritForAutoSpawn(seenBehaviors: Set<SpiritBehaviorType>): ResolvedSpiritConfig | undefined {
+  // Find behaviors that haven't been seen yet
+  const unseenBehaviors = ALL_BEHAVIOR_TYPES.filter(b => !seenBehaviors.has(b));
+
+  let candidateSpirits: ResolvedSpiritConfig[];
+
+  if (unseenBehaviors.length > 0) {
+    // Bias towards unseen behaviors - pick a random unseen behavior
+    const randomUnseenBehavior = unseenBehaviors[Math.floor(Math.random() * unseenBehaviors.length)];
+    candidateSpirits = ALL_RESOLVED_SPIRITS.filter(s => s.behavior === randomUnseenBehavior);
+  } else {
+    // All behaviors have been seen - pick from all spirits
+    candidateSpirits = ALL_RESOLVED_SPIRITS;
+  }
+
+  // Use weighted random selection based on rarity
+  return getRandomSpirit(candidateSpirits);
+}
+
 interface SceneViewportProps {
   onSpiritClick?: (payload: SpiritClickPayload) => void;
 }
@@ -143,9 +182,14 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
   // Spirits debug state
   const [selectedBehavior, setSelectedBehavior] = useState<SpiritBehaviorType>('simple-glow');
   const [selectedRarity, setSelectedRarity] = useState<SpiritRarity | 'all'>('all');
+  const [isAutoSpawnDemoEnabled, setIsAutoSpawnDemoEnabled] = useState(false);
 
   // Ref to SpiritLayer for spawning spirits
   const spiritLayerRef = useRef<SpiritLayerHandle>(null);
+
+  // Auto-spawn tracking refs
+  const autoSpawnCountRef = useRef<number>(0);
+  const seenBehaviorsRef = useRef<Set<SpiritBehaviorType>>(new Set());
 
   // PiP: Track spirit positions for canvas mirror
   const [spiritPositions, setSpiritPositions] = useState<SpiritPosition[]>([]);
@@ -191,6 +235,69 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(audioSettings));
   }, [audioSettings]);
+
+  /**
+   * Auto-spawn demo system
+   *
+   * When enabled, spawns a random spirit every 40 seconds.
+   * Ensures at least 5 spirits are spawned and that we get at least one of each behavior type.
+   * Both behavior and rarity are chosen randomly from the registry.
+   */
+  useEffect(() => {
+    // If auto-spawn is disabled, clear any interval and reset
+    if (!isAutoSpawnDemoEnabled) {
+      return;
+    }
+
+    // Reset tracking when auto-spawn is enabled
+    autoSpawnCountRef.current = 0;
+    seenBehaviorsRef.current = new Set();
+
+    // Auto-spawn function
+    const spawnRandomSpirit = () => {
+      // Check if spiritLayerRef is ready
+      if (!spiritLayerRef.current) {
+        console.warn('[Auto-spawn] SpiritLayer not ready yet');
+        return;
+      }
+
+      // Pick a random spirit with behavior coverage logic
+      const spirit = pickRandomSpiritForAutoSpawn(seenBehaviorsRef.current);
+
+      if (!spirit) {
+        console.warn('[Auto-spawn] No spirit found to spawn');
+        return;
+      }
+
+      // Spawn the spirit
+      spiritLayerRef.current.spawnById(spirit.id);
+
+      // Update tracking
+      autoSpawnCountRef.current += 1;
+      seenBehaviorsRef.current.add(spirit.behavior);
+
+      console.log('[Auto-spawn]', {
+        count: autoSpawnCountRef.current,
+        spirit: spirit.displayName,
+        behavior: spirit.behavior,
+        rarity: spirit.rarity,
+        seenBehaviors: Array.from(seenBehaviorsRef.current),
+      });
+    };
+
+    // Spawn the first spirit immediately
+    spawnRandomSpirit();
+
+    // Set up interval to spawn every 40 seconds
+    const intervalId = setInterval(() => {
+      spawnRandomSpirit();
+    }, 40_000); // 40 seconds
+
+    // Cleanup: clear interval when component unmounts or auto-spawn is disabled
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isAutoSpawnDemoEnabled]);
 
   // Internal handler for spirit clicks - logs and forwards to parent
   const handleSpiritClickInternal = (payload: SpiritClickPayload) => {
@@ -595,6 +702,30 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
                         <option value="rare">Rare</option>
                         <option value="mythic">Mythic</option>
                       </select>
+                    </div>
+                  </div>
+
+                  {/* Auto-spawn demo toggle */}
+                  <div className="pt-4 border-t border-spirit-muted/20">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="auto-spawn-demo"
+                        checked={isAutoSpawnDemoEnabled}
+                        onChange={(e) => setIsAutoSpawnDemoEnabled(e.target.checked)}
+                        className="mt-1 w-4 h-4 rounded border-spirit-muted/30 bg-forest-dark text-spirit-glow focus:ring-2 focus:ring-spirit-glow/50 focus:ring-offset-0 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <label
+                          htmlFor="auto-spawn-demo"
+                          className="block text-sm font-medium text-spirit-light cursor-pointer"
+                        >
+                          Auto-spawn demo spirits
+                        </label>
+                        <p className="text-xs text-spirit-muted mt-1">
+                          Every 40 seconds, spawn a random spirit for debugging/demo. Ensures at least one of each behavior type.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
