@@ -156,7 +156,9 @@ export function SceneViewport({ onSpiritClick }: SceneViewportProps) {
     height: 720,
     isNight,
     spirits: spiritPositions,
-    fps: 30,
+    fps: 60, // Smooth 60 FPS for PiP
+    grassCount,
+    grassHeightFactor,
   });
 
   // PiP: Update spirit positions periodically for canvas mirror

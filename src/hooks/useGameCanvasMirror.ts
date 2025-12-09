@@ -1,11 +1,16 @@
 /**
  * useGameCanvasMirror Hook
  *
- * Creates and manages a canvas that mirrors the game viewport for PiP.
- * Draws a complete representation of the game (background + midground + spirits).
+ * Creates a complete, self-contained mini-renderer for PiP.
+ * Renders a full standalone version of the game scene (background, midground, spirits)
+ * on its own offscreen canvas without touching or reusing the main game viewport.
+ *
+ * This is a viewer-only mini engine that observes game state and renders independently.
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import florestDayImage from '@/assets/background/florest.png';
+import florestNightImage from '@/assets/background/florest-night.png';
 
 export interface SpiritPosition {
   x: number; // percentage 0-100
@@ -20,10 +25,6 @@ export interface GameCanvasMirrorOptions {
   width?: number;
   /** Height of the canvas */
   height?: number;
-  /** Background color (day mode) */
-  bgColorDay?: string;
-  /** Background color (night mode) */
-  bgColorNight?: string;
   /** Whether it's currently night */
   isNight?: boolean;
   /** Array of spirit positions to render */
@@ -37,7 +38,31 @@ export interface GameCanvasMirrorOptions {
 }
 
 // ============================================================================
-// GRASS RENDERING (Lightweight version)
+// BACKGROUND IMAGE LOADING
+// ============================================================================
+
+const backgroundImageCache = new Map<string, HTMLImageElement>();
+
+function loadBackgroundImage(isNight: boolean): Promise<HTMLImageElement> {
+  const src = isNight ? florestNightImage : florestDayImage;
+
+  if (backgroundImageCache.has(src)) {
+    return Promise.resolve(backgroundImageCache.get(src)!);
+  }
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      backgroundImageCache.set(src, img);
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// ============================================================================
+// GRASS RENDERING (Lightweight, self-contained version)
 // ============================================================================
 
 interface GrassObject {
@@ -74,7 +99,7 @@ function lineToAngle(x1: number, y1: number, length: number, angle: number): [nu
 }
 
 /**
- * Draw smooth curve through points using simplified cardinal spline
+ * Draw smooth curve through points using cardinal spline
  */
 function drawCurve(
   ctx: CanvasRenderingContext2D,
@@ -144,12 +169,10 @@ function createGrassObject(
   grassWidth: number,
   isNight: boolean
 ): GrassObject {
-  // Get random angle between 0 and maxAngle
   function getAngle(): number {
     return maxAngle * Math.random();
   }
 
-  // Generate grass colors based on day/night
   let baseColor: string;
   let tipColor: string;
 
@@ -270,22 +293,28 @@ function renderGrassBlade(
 }
 
 /**
- * Initialize grass blades
+ * Initialize grass blades with proper scaling based on canvas dimensions
  */
 function initializeGrass(
   numOfGrass: number,
-  width: number,
-  height: number,
-  hVariation: number,
-  grassWidth: number,
+  canvasWidth: number,
+  canvasHeight: number,
+  grassHeightFactor: number,
   isNight: boolean
 ): GrassObject[] {
   const grass: GrassObject[] = [];
-  const hf = height * hVariation;
+  
+  // Calculate grass area dimensions
+  const grassHeight = canvasHeight * grassHeightFactor;
+  const hVariation = 0.3;
+  const hf = grassHeight * hVariation;
+  
+  // Scale grass width based on canvas size
+  const grassWidth = Math.max(8, canvasWidth * 0.01); // 1% of canvas width, minimum 8px
 
   for (let i = 0; i < numOfGrass; i++) {
-    const x = width * Math.random();
-    const y = height - hf * Math.random();
+    const x = canvasWidth * Math.random();
+    const y = grassHeight - hf * Math.random();
     const seg1 = y / 3 + y * hVariation * Math.random() * 0.1;
     const seg2 = (y / 3) * 2 + y * hVariation * Math.random() * 0.1;
     const maxAngle = 15 * Math.random() + 50;
@@ -302,17 +331,16 @@ function initializeGrass(
 
 /**
  * Hook to create and manage a canvas mirror of the game viewport.
+ * This is a completely self-contained mini-renderer for PiP only.
  * Returns a canvas ref and a MediaStream for PiP.
  */
 export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
   const {
     width = 1280,
     height = 720,
-    bgColorDay = '#1a3a2e',
-    bgColorNight = '#0d1f1a',
     isNight = false,
     spirits = [],
-    fps = 30,
+    fps = 60,
     grassCount = 100,
     grassHeightFactor = 0.6,
   } = options;
@@ -321,13 +349,12 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   
-  // Fixed timestep accumulator for smooth rendering
-  const accumulatorRef = useRef<number>(0);
-  const lastTimeRef = useRef<number>(0);
-
   // Grass state
   const grassRef = useRef<GrassObject[]>([]);
-  const grassInitializedRef = useRef<boolean>(false);
+  
+  // Background image state
+  const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+  const backgroundLoadedRef = useRef<boolean>(false);
 
   // Initialize canvas
   useEffect(() => {
@@ -364,57 +391,74 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
     };
   }, [width, height, fps]);
 
+  // Load background image when isNight changes
+  useEffect(() => {
+    loadBackgroundImage(isNight).then(img => {
+      backgroundImageRef.current = img;
+      backgroundLoadedRef.current = true;
+    }).catch(err => {
+      console.warn('Failed to load background image for PiP:', err);
+      backgroundLoadedRef.current = false;
+    });
+  }, [isNight]);
+
   // Initialize or reinitialize grass when parameters change
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const grassHeight = height * grassHeightFactor;
+    const grassHeight = canvas.height * grassHeightFactor;
     grassRef.current = initializeGrass(
       grassCount,
-      width,
+      canvas.width,
       grassHeight,
-      0.3,
-      12,
+      grassHeightFactor,
       isNight
     );
-    grassInitializedRef.current = true;
   }, [width, height, grassCount, grassHeightFactor, isNight]);
 
-  // Draw function
-  const draw = useCallback(() => {
+  // Main render function
+  const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+
     // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // ========================================================================
-    // LAYER 1: Background (matching BackgroundLayer.tsx)
+    // LAYER 1: Background
     // ========================================================================
 
-    // Base background color
-    const bgColor = isNight ? bgColorNight : bgColorDay;
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Draw background image if loaded
+    if (backgroundLoadedRef.current && backgroundImageRef.current) {
+      ctx.drawImage(backgroundImageRef.current, 0, 0, canvasWidth, canvasHeight);
+    } else {
+      // Fallback solid color while image loads
+      const bgColor = isNight ? '#0d1f1a' : '#1a3a2e';
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
 
-    // Add gradient overlay for depth (matching the forest depth effect)
-    const depthGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    // Add depth gradient overlay
+    const depthGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
     depthGradient.addColorStop(0, 'rgba(0, 0, 0, 0.1)');
     depthGradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
     ctx.fillStyle = depthGradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Add subtle floating particles (fireflies) - simplified version
+    // Add subtle floating particles (fireflies)
     const particleCount = 8;
     const time = Date.now() / 1000;
     for (let i = 0; i < particleCount; i++) {
       const seed = i * 0.7;
-      const x = (10 + (seed * 80) % 80) / 100 * canvas.width;
-      const baseY = (20 + (seed * 50) % 50) / 100 * canvas.height;
+      const x = (10 + (seed * 80) % 80) / 100 * canvasWidth;
+      const baseY = (20 + (seed * 50) % 50) / 100 * canvasHeight;
       
       // Simple sine wave for floating animation
       const floatOffset = Math.sin(time * 0.3 + seed * Math.PI) * 20;
@@ -428,12 +472,12 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
     }
 
     // ========================================================================
-    // LAYER 2: Midground (grass)
+    // LAYER 2: Midground (Grass)
     // ========================================================================
 
-    if (grassInitializedRef.current && grassRef.current.length > 0) {
-      const grassHeight = canvas.height * grassHeightFactor;
-      const grassY = canvas.height - grassHeight;
+    if (grassRef.current.length > 0) {
+      const grassHeight = canvasHeight * grassHeightFactor;
+      const grassY = canvasHeight - grassHeight;
 
       // Update grass animations
       grassRef.current.forEach(grass => {
@@ -455,8 +499,8 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
     // ========================================================================
 
     spirits.forEach(spirit => {
-      const x = (spirit.x / 100) * canvas.width;
-      const y = (spirit.y / 100) * canvas.height;
+      const x = (spirit.x / 100) * canvasWidth;
+      const y = (spirit.y / 100) * canvasHeight;
       const radius = spirit.size / 2;
 
       const hue = spirit.hue;
@@ -467,7 +511,9 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
       glowGradient.addColorStop(0.5, `hsla(${hue}, 80%, 60%, 0.2)`);
       glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = glowGradient;
-      ctx.fillRect(x - radius * 3, y - radius * 3, radius * 6, radius * 6);
+      ctx.beginPath();
+      ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+      ctx.fill();
 
       // Draw spirit core
       const coreGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
@@ -487,30 +533,19 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.font = '20px serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Echos of the Wood', canvas.width / 2, 30);
-  }, [isNight, bgColorDay, bgColorNight, spirits, grassHeightFactor]);
+    ctx.fillText('Echos of the Wood', canvasWidth / 2, 30);
+  }, [isNight, spirits, grassHeightFactor]);
 
-  // Animation loop with fixed timestep for smooth rendering
+  // Animation loop with smooth 60 FPS rendering
   useEffect(() => {
-    const targetFrameTime = 1000 / fps; // Target time per frame in ms
+    const targetFrameTime = 1000 / fps;
+    let lastFrameTime = 0;
 
     const animate = (currentTime: number) => {
-      if (lastTimeRef.current === 0) {
-        lastTimeRef.current = currentTime;
-      }
-
-      // Calculate delta time
-      const deltaTime = currentTime - lastTimeRef.current;
-      lastTimeRef.current = currentTime;
-
-      // Add to accumulator
-      accumulatorRef.current += deltaTime;
-
-      // Process fixed timesteps
-      while (accumulatorRef.current >= targetFrameTime) {
-        // Update and draw at fixed intervals
-        draw();
-        accumulatorRef.current -= targetFrameTime;
+      // Check if enough time has passed for the next frame
+      if (currentTime - lastFrameTime >= targetFrameTime) {
+        lastFrameTime = currentTime;
+        render();
       }
 
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -522,10 +557,8 @@ export function useGameCanvasMirror(options: GameCanvasMirrorOptions = {}) {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      lastTimeRef.current = 0;
-      accumulatorRef.current = 0;
     };
-  }, [draw, fps]);
+  }, [render, fps]);
 
   return {
     canvasRef,
